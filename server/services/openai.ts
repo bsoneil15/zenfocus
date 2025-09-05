@@ -26,7 +26,7 @@ export async function generateFocusPrompts(): Promise<FocusPromptSuggestion[]> {
         }
       ],
       response_format: { type: "json_object" },
-      max_tokens: 300,
+      max_completion_tokens: 300,
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
@@ -79,7 +79,7 @@ export async function generateSoundscapeName(prompt: string): Promise<string> {
         }
       ],
       response_format: { type: "json_object" },
-      max_tokens: 50,
+      max_completion_tokens: 50,
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");

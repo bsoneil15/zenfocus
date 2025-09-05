@@ -157,6 +157,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Newsletter signup endpoint
+  app.post("/api/newsletter/signup", async (req, res) => {
+    try {
+      const signupSchema = z.object({
+        email: z.string().email("Invalid email address"),
+      });
+
+      const validatedData = signupSchema.parse(req.body);
+      
+      // Check if already subscribed
+      const existing = await storage.getNewsletterSubscriber(validatedData.email);
+      if (existing) {
+        res.status(200).json({ 
+          message: "Already subscribed!",
+          alreadySubscribed: true 
+        });
+        return;
+      }
+
+      // Create new subscriber
+      const subscriber = await storage.createNewsletterSubscriber({
+        email: validatedData.email,
+        subscribed: true,
+      });
+
+      // Unlock all newsletter soundscape packs
+      const packs = await storage.getSoundscapePacks();
+      const newsletterPacks = packs.filter(pack => pack.unlockedBy === "newsletter");
+      
+      for (const pack of newsletterPacks) {
+        await storage.updateSoundscapePackUnlocked(pack.id, true);
+      }
+
+      res.json({
+        message: "Successfully subscribed to newsletter!",
+        subscriber: { email: subscriber.email },
+        unlockedPacks: newsletterPacks.length
+      });
+    } catch (error) {
+      console.error("Failed to subscribe to newsletter:", error);
+      
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ 
+          message: "Invalid email address",
+          errors: error.errors 
+        });
+      } else {
+        res.status(500).json({ 
+          message: "Failed to subscribe to newsletter",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+  });
+
+  // Get soundscape packs
+  app.get("/api/soundscape-packs", async (req, res) => {
+    try {
+      const packs = await storage.getSoundscapePacks();
+      res.json({ packs });
+    } catch (error) {
+      console.error("Failed to get soundscape packs:", error);
+      res.status(500).json({ 
+        message: "Failed to get soundscape packs",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ 

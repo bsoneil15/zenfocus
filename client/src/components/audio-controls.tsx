@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { VolumeX, Volume2, Cloud, Coffee, Sparkles } from "lucide-react";
+import { VolumeX, Volume2, Cloud, Coffee, Sparkles, Package } from "lucide-react";
 import type { SoundscapeType, CustomSoundscape } from "@/hooks/use-audio-manager";
 
 interface AudioControlsProps {
@@ -12,6 +12,7 @@ interface AudioControlsProps {
   onSoundscapeChange: (type: SoundscapeType, customId?: string) => void;
   onVolumeChange: (volume: number) => void;
   onGenerateAI: () => void;
+  onViewPacks: () => void;
 }
 
 export function AudioControls({
@@ -22,6 +23,7 @@ export function AudioControls({
   onSoundscapeChange,
   onVolumeChange,
   onGenerateAI,
+  onViewPacks,
 }: AudioControlsProps) {
   const soundwaveBars = Array.from({ length: 4 }, (_, i) => (
     <div
@@ -123,15 +125,27 @@ export function AudioControls({
           </span>
         </div>
         
-        <Button
-          variant="outline"
-          className="w-full py-3 h-auto transition-all duration-200 active:scale-95"
-          onClick={onGenerateAI}
-          data-testid="button-generate-ai"
-        >
-          <Sparkles className="h-4 w-4 mr-2 text-primary" />
-          <span className="text-sm font-medium">Generate AI Soundscape</span>
-        </Button>
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            variant="outline"
+            className="py-3 h-auto transition-all duration-200 active:scale-95"
+            onClick={onGenerateAI}
+            data-testid="button-generate-ai"
+          >
+            <Sparkles className="h-4 w-4 mr-1 text-primary" />
+            <span className="text-sm font-medium">Generate AI</span>
+          </Button>
+          
+          <Button
+            variant="outline"
+            className="py-3 h-auto transition-all duration-200 active:scale-95"
+            onClick={onViewPacks}
+            data-testid="button-view-packs"
+          >
+            <Package className="h-4 w-4 mr-1 text-primary" />
+            <span className="text-sm font-medium">Unlock Packs</span>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

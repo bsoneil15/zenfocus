@@ -12,10 +12,12 @@ import { AudioControls } from "@/components/audio-controls";
 import { SessionStats } from "@/components/session-stats";
 import { SettingsPanel } from "@/components/settings-panel";
 import { AIGeneratorPanel } from "@/components/ai-generator-panel";
+import { SoundscapePacksPanel } from "@/components/soundscape-packs-panel";
 
 export default function PomodoroPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
+  const [isSoundscapePacksOpen, setIsSoundscapePacksOpen] = useState(false);
   const [todayStats, setTodayStats] = useState({
     sessions: 0,
     minutes: 0,
@@ -235,6 +237,7 @@ export default function PomodoroPage() {
           onVolumeChange={setVolume}
           onSoundscapeChange={handleSoundscapeChange}
           onGenerateAI={() => setIsAIGeneratorOpen(true)}
+          onViewPacks={() => setIsSoundscapePacksOpen(true)}
         />
 
         <SessionStats
@@ -258,6 +261,14 @@ export default function PomodoroPage() {
         isOpen={isAIGeneratorOpen}
         onClose={() => setIsAIGeneratorOpen(false)}
         onSoundscapeGenerated={handleSoundscapeGenerated}
+      />
+
+      <SoundscapePacksPanel
+        isOpen={isSoundscapePacksOpen}
+        onClose={() => setIsSoundscapePacksOpen(false)}
+        onPacksUnlocked={() => {
+          // Could refresh custom soundscapes or show a message
+        }}
       />
     </div>
   );

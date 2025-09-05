@@ -14,7 +14,7 @@ export interface FocusPromptSuggestion {
 export async function generateFocusPrompts(): Promise<FocusPromptSuggestion[]> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      model: "gpt-5-nano-2025-08-07",
       messages: [
         {
           role: "system",
@@ -76,7 +76,7 @@ export async function generateFocusPrompts(): Promise<FocusPromptSuggestion[]> {
 export async function generateSoundscapeName(prompt: string): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      model: "gpt-5-nano-2025-08-07",
       messages: [
         {
           role: "system",

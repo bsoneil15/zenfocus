@@ -87,7 +87,7 @@ export function AudioControls({
         </div>
         
         {/* Pack Soundscapes (unlocked) */}
-        {packSoundscapes.length > 0 && (
+        {packSoundscapes.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 mb-4">
             {packSoundscapes.slice(0, 4).map((soundscape) => {
               const getEmoji = (name: string) => {
@@ -111,6 +111,31 @@ export function AudioControls({
                 </Button>
               );
             })}
+          </div>
+        ) : (
+          <div className="mb-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 opacity-50 cursor-not-allowed flex flex-col items-center gap-1"
+                disabled
+                data-testid="locked-pack-soundscape"
+              >
+                <span className="text-sm">🔒</span>
+                Pack Sounds
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95"
+                onClick={onViewPacks}
+                data-testid="unlock-packs-button"
+              >
+                <span className="text-sm">⚙️</span>
+                Unlock in Settings
+              </Button>
+            </div>
           </div>
         )}
         
@@ -173,7 +198,7 @@ export function AudioControls({
             data-testid="button-view-packs"
           >
             <Package className="h-4 w-4 mr-1 text-primary" />
-            <span className="text-sm font-medium">Unlock Packs</span>
+            <span className="text-sm font-medium">{packSoundscapes.length > 0 ? 'View Packs' : 'Unlock Packs'}</span>
           </Button>
         </div>
       </CardContent>

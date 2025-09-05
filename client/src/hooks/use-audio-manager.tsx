@@ -117,11 +117,14 @@ export function useAudioManager() {
 
   const playPackSoundscape = useCallback(async (soundscape: PackSoundscape) => {
     try {
-      // Convert @assets path to actual file path
+      // Convert @assets path to API endpoint
       let audioUrl = soundscape.audioUrl;
       if (audioUrl.startsWith('@assets/')) {
-        audioUrl = `/attached_assets/${audioUrl.replace('@assets/', '')}`;
+        const filename = audioUrl.replace('@assets/', '');
+        audioUrl = `/api/audio/${encodeURIComponent(filename)}`;
       }
+      
+      console.log('Attempting to play pack soundscape from URL:', audioUrl);
       const audioBuffer = await createAudioBuffer(audioUrl, audioContextRef.current!);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
@@ -175,6 +178,16 @@ export function useAudioManager() {
   // Load pack soundscapes from API
   const loadPackSoundscapes = useCallback(async () => {
     try {
+      // Check which packs are unlocked first
+      const packsResponse = await apiRequest("GET", "/api/soundscape-packs");
+      const packsData = await packsResponse.json();
+      const unlockedPackIds = packsData.packs.filter((p: any) => p.isUnlocked).map((p: any) => p.id);
+      
+      if (unlockedPackIds.length === 0) {
+        setPackSoundscapes([]);
+        return;
+      }
+      
       const response = await apiRequest("GET", "/api/soundscapes");
       const data = await response.json();
       const packSounds: PackSoundscape[] = data.soundscapes

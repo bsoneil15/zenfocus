@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
+import path from "path";
 import { storage } from "./storage";
 import { insertSoundscapeSchema } from "@shared/schema";
 import { generateFocusPrompts, generateSoundscapeName } from "./services/openai";
@@ -240,6 +241,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Serve audio files
+  app.get("/api/audio/:filename", (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.resolve(import.meta.dirname, '..', 'attached_assets', filename);
+    
+    // Security check - ensure file is in attached_assets directory
+    if (!filePath.startsWith(path.resolve(import.meta.dirname, '..', 'attached_assets'))) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        console.error('Error serving audio file:', err);
+        res.status(404).json({ message: 'Audio file not found' });
+      }
+    });
+  });
+  
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ 

@@ -7,9 +7,6 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Serve attached assets
-app.use('/attached_assets', express.static(path.resolve(import.meta.dirname, '..', 'attached_assets')));
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -42,6 +39,9 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+  
+  // Serve attached assets AFTER routes but BEFORE Vite
+  app.use('/attached_assets', express.static(path.resolve(import.meta.dirname, '..', 'attached_assets')));
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

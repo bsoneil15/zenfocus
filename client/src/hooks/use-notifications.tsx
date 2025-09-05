@@ -50,15 +50,17 @@ export function useNotifications() {
 
   const showTimerNotification = useCallback(
     (isBreak: boolean) => {
-      const title = "Pomodoro Timer";
+      const title = "🍅 Focus Flow - Pomodoro Timer";
       const body = isBreak 
-        ? "Break time! Step away and recharge." 
-        : "Focus time! Let's get productive.";
+        ? "✨ Break time! Step away and recharge." 
+        : "🎯 Focus session complete! Time for a well-deserved break.";
       
       return showNotification(title, {
         body,
         tag: "pomodoro-timer",
-        requireInteraction: false,
+        requireInteraction: true,
+        silent: false,
+        data: { sessionType: isBreak ? "break" : "focus" }
       });
     },
     [showNotification]

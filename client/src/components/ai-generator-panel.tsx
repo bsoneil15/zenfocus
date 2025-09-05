@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { canGenerateToday, incrementDailyUsage, getRemainingGenerations } from "@/lib/daily-limits";
 
 interface AIGeneratorPanelProps {
   isOpen: boolean;
@@ -27,6 +28,9 @@ export function AIGeneratorPanel({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const { toast } = useToast();
+  
+  const remainingGenerations = getRemainingGenerations();
+  const canGenerate = canGenerateToday();
 
   const loadSuggestions = async () => {
     if (suggestions.length > 0) return; // Already loaded
@@ -63,6 +67,16 @@ export function AIGeneratorPanel({
       return;
     }
 
+    // Check daily limit
+    if (!canGenerateToday()) {
+      toast({
+        title: "Daily Limit Reached",
+        description: "You've reached your daily limit of 3 custom soundscapes. Try again tomorrow!",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsGenerating(true);
     
     // Show "this may take a moment" toast
@@ -80,6 +94,9 @@ export function AIGeneratorPanel({
       
       const data = await response.json();
       
+      // Increment daily usage count
+      incrementDailyUsage();
+      
       onSoundscapeGenerated({
         id: data.id,
         name: data.name,
@@ -87,9 +104,12 @@ export function AIGeneratorPanel({
         prompt: customPrompt.trim(),
       });
       
+      const remaining = getRemainingGenerations();
       toast({
         title: "Success",
-        description: "Custom soundscape generated successfully!",
+        description: remaining > 0 
+          ? `Custom soundscape generated successfully! ${remaining} generations remaining today.`
+          : "Custom soundscape generated successfully! Daily limit reached.",
       });
       
       setCustomPrompt("");
@@ -128,9 +148,20 @@ export function AIGeneratorPanel({
         <h2 className="text-lg font-semibold text-foreground mb-2">
           AI Soundscape Generator
         </h2>
-        <p className="text-sm text-muted-foreground mb-6">
+        <p className="text-sm text-muted-foreground mb-2">
           Generate custom focus soundscapes using AI
         </p>
+        <div className="flex items-center justify-between mb-6">
+          <div className={`text-xs px-2 py-1 rounded-full ${
+            canGenerate ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
+                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+          }`}>
+            {remainingGenerations > 0 
+              ? `${remainingGenerations} generations remaining today`
+              : 'Daily limit reached (resets tomorrow)'
+            }
+          </div>
+        </div>
         
         <div className="space-y-4 mb-6">
           <h3 className="text-sm font-medium text-foreground">
@@ -185,7 +216,7 @@ export function AIGeneratorPanel({
           <Button
             className="flex-1 transition-colors active:scale-95"
             onClick={generateSoundscape}
-            disabled={isGenerating || !customPrompt.trim()}
+            disabled={isGenerating || !customPrompt.trim() || !canGenerate}
             data-testid="button-generate-soundscape"
           >
             {isGenerating ? (

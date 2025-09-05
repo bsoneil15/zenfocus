@@ -141,6 +141,17 @@ export default function PomodoroPage() {
     localStorage.setItem(`pomodoro-stats-${today}`, JSON.stringify(todayStats));
   }, [todayStats]);
 
+  // Update browser tab title with remaining time
+  useEffect(() => {
+    const formattedTime = getFormattedTime();
+    const modeText = timerState.mode === "focus" ? "Focus" : "Break";
+    const statusIcon = timerState.isRunning ? "⏰" : "⏸️";
+    
+    document.title = timerState.isRunning || timerState.currentTime < (timerState.mode === "focus" ? settings.focusDuration * 60 : settings.breakDuration * 60)
+      ? `${statusIcon} ${formattedTime} ${modeText} - Focus Flow`
+      : "Focus Flow - Pomodoro Timer";
+  }, [getFormattedTime, timerState.mode, timerState.isRunning, timerState.currentTime, settings.focusDuration, settings.breakDuration]);
+
   const handleStartPause = () => {
     if (timerState.isRunning) {
       pause();

@@ -44,12 +44,14 @@ export default function PomodoroPage() {
   const {
     currentSoundscape,
     customSoundscapes,
+    packSoundscapes,
     volume,
     isPlaying,
     setVolume,
     setSoundscape,
     addCustomSoundscape,
     playNotificationSound,
+    loadPackSoundscapes,
   } = useAudioManager();
 
   const {
@@ -232,6 +234,7 @@ export default function PomodoroPage() {
         <AudioControls
           currentSoundscape={currentSoundscape}
           customSoundscapes={customSoundscapes}
+          packSoundscapes={packSoundscapes}
           volume={volume}
           isPlaying={isPlaying}
           onVolumeChange={setVolume}
@@ -267,7 +270,8 @@ export default function PomodoroPage() {
         isOpen={isSoundscapePacksOpen}
         onClose={() => setIsSoundscapePacksOpen(false)}
         onPacksUnlocked={() => {
-          // Could refresh custom soundscapes or show a message
+          // Refresh pack soundscapes when packs are unlocked
+          loadPackSoundscapes();
         }}
       />
     </div>

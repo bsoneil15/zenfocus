@@ -21,6 +21,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all soundscapes
+  app.get("/api/soundscapes", async (req, res) => {
+    try {
+      const soundscapes = await storage.getSoundscapes();
+      res.json({ soundscapes });
+    } catch (error) {
+      console.error("Failed to get soundscapes:", error);
+      res.status(500).json({ 
+        message: "Failed to get soundscapes",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Generate a new soundscape using ElevenLabs
   app.post("/api/soundscapes/generate", async (req, res) => {
     try {

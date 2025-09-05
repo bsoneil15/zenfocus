@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createAudioBuffer, createLoopingAudio } from "@/lib/audio-utils";
+import { apiRequest } from "@/lib/queryClient";
 
-export type SoundscapeType = "none" | "rain" | "coffee" | "custom";
+export type SoundscapeType = "none" | "rain" | "coffee" | "custom" | "pack";
 
 export interface CustomSoundscape {
   id: string;
@@ -10,9 +11,18 @@ export interface CustomSoundscape {
   prompt: string;
 }
 
+export interface PackSoundscape {
+  id: string;
+  name: string;
+  audioUrl: string;
+  prompt: string;
+  packId: string;
+}
+
 export function useAudioManager() {
   const [currentSoundscape, setCurrentSoundscape] = useState<SoundscapeType>("none");
   const [customSoundscapes, setCustomSoundscapes] = useState<CustomSoundscape[]>([]);
+  const [packSoundscapes, setPackSoundscapes] = useState<PackSoundscape[]>([]);
   const [volume, setVolume] = useState(0.3);
   const [isPlaying, setIsPlaying] = useState(false);
   
@@ -105,6 +115,20 @@ export function useAudioManager() {
     }
   }, [playAudioBuffer]);
 
+  const playPackSoundscape = useCallback(async (soundscape: PackSoundscape) => {
+    try {
+      // Convert @assets path to actual file path
+      let audioUrl = soundscape.audioUrl;
+      if (audioUrl.startsWith('@assets/')) {
+        audioUrl = `/attached_assets/${audioUrl.replace('@assets/', '')}`;
+      }
+      const audioBuffer = await createAudioBuffer(audioUrl, audioContextRef.current!);
+      await playAudioBuffer(audioBuffer);
+    } catch (error) {
+      console.error("Failed to play pack soundscape:", error);
+    }
+  }, [playAudioBuffer]);
+
   const setSoundscape = useCallback(async (type: SoundscapeType, customId?: string) => {
     setCurrentSoundscape(type);
 
@@ -120,8 +144,13 @@ export function useAudioManager() {
       if (customSoundscape) {
         await playCustomSoundscape(customSoundscape);
       }
+    } else if (type === "pack" && customId) {
+      const packSoundscape = packSoundscapes.find(s => s.id === customId);
+      if (packSoundscape) {
+        await playPackSoundscape(packSoundscape);
+      }
     }
-  }, [stopCurrentAudio, playPredefinedSoundscape, playCustomSoundscape, customSoundscapes]);
+  }, [stopCurrentAudio, playPredefinedSoundscape, playCustomSoundscape, playPackSoundscape, customSoundscapes, packSoundscapes]);
 
   const addCustomSoundscape = useCallback((soundscape: CustomSoundscape) => {
     setCustomSoundscapes(prev => [...prev, soundscape]);
@@ -142,6 +171,30 @@ export function useAudioManager() {
       }
     }
   }, []);
+
+  // Load pack soundscapes from API
+  const loadPackSoundscapes = useCallback(async () => {
+    try {
+      const response = await apiRequest("GET", "/api/soundscapes");
+      const data = await response.json();
+      const packSounds: PackSoundscape[] = data.soundscapes
+        .filter((s: any) => s.isPublic)
+        .map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          audioUrl: s.audioUrl,
+          prompt: s.prompt,
+          packId: 'pack-1' // For now, assume they're all in pack-1
+        }));
+      setPackSoundscapes(packSounds);
+    } catch (error) {
+      console.error("Failed to load pack soundscapes:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPackSoundscapes();
+  }, [loadPackSoundscapes]);
 
   const playNotificationSound = useCallback(async () => {
     if (!audioContextRef.current) return;
@@ -179,6 +232,7 @@ export function useAudioManager() {
   return {
     currentSoundscape,
     customSoundscapes,
+    packSoundscapes,
     volume,
     isPlaying,
     setVolume,
@@ -186,5 +240,6 @@ export function useAudioManager() {
     addCustomSoundscape,
     playNotificationSound,
     stopCurrentAudio,
+    loadPackSoundscapes,
   };
 }

@@ -138,11 +138,16 @@ export function SoundscapePacksPanel({
                 
                 <div className="space-y-4">
                   {lockedPacks.map((pack) => (
-                    <Card key={pack.id} className="border-dashed">
+                    <Card key={pack.id} className={pack.unlockedBy === 'coming-soon' ? "border-dashed opacity-60" : "border-dashed"}>
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                           <Lock className="h-4 w-4" />
                           {pack.name}
+                          {pack.unlockedBy === 'coming-soon' && (
+                            <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full text-muted-foreground">
+                              Coming Soon
+                            </span>
+                          )}
                         </CardTitle>
                         <CardDescription>
                           {pack.description}
@@ -151,9 +156,12 @@ export function SoundscapePacksPanel({
                     </Card>
                   ))}
                   
-                  <div className="pt-4">
-                    <NewsletterSignup onUnlockPacks={handlePacksUnlocked} />
-                  </div>
+                  {/* Only show newsletter signup if there are newsletter-unlockable packs */}
+                  {lockedPacks.some(pack => pack.unlockedBy === 'newsletter') && (
+                    <div className="pt-4">
+                      <NewsletterSignup onUnlockPacks={handlePacksUnlocked} />
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -2,11 +2,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { VolumeX, Volume2, Cloud, Coffee, Sparkles, Package } from "lucide-react";
-import type { SoundscapeType, CustomSoundscape } from "@/hooks/use-audio-manager";
+import type { SoundscapeType, CustomSoundscape, PackSoundscape } from "@/hooks/use-audio-manager";
 
 interface AudioControlsProps {
   currentSoundscape: SoundscapeType;
   customSoundscapes: CustomSoundscape[];
+  packSoundscapes: PackSoundscape[];
   isPlaying: boolean;
   volume: number;
   onSoundscapeChange: (type: SoundscapeType, customId?: string) => void;
@@ -18,6 +19,7 @@ interface AudioControlsProps {
 export function AudioControls({
   currentSoundscape,
   customSoundscapes,
+  packSoundscapes,
   isPlaying,
   volume,
   onSoundscapeChange,
@@ -83,6 +85,24 @@ export function AudioControls({
             Coffee Shop
           </Button>
         </div>
+        
+        {/* Pack Soundscapes (unlocked) */}
+        {packSoundscapes.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {packSoundscapes.slice(0, 4).map((soundscape) => (
+              <Button
+                key={soundscape.id}
+                variant={currentSoundscape === "pack" ? "default" : "ghost"}
+                size="sm"
+                className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95"
+                onClick={() => onSoundscapeChange("pack", soundscape.id)}
+                data-testid={`pack-soundscape-${soundscape.id}`}
+              >
+                {soundscape.name}
+              </Button>
+            ))}
+          </div>
+        )}
         
         {/* Custom Soundscapes */}
         {customSoundscapes.length > 0 && (

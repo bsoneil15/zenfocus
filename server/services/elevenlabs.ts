@@ -11,11 +11,13 @@ export interface SoundGenerationResponse {
 }
 
 export async function generateSound(request: SoundGenerationRequest): Promise<SoundGenerationResponse> {
-  const apiKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY_ENV_VAR || "default_key";
+  const apiKey = process.env.ELEVENLABS_API_KEY;
   
-  if (!apiKey || apiKey === "default_key") {
+  if (!apiKey) {
     throw new Error("ElevenLabs API key not found. Please set ELEVENLABS_API_KEY environment variable.");
   }
+
+  console.log("Generating sound with ElevenLabs:", { prompt: request.prompt, duration: request.duration });
 
   try {
     const response = await fetch("https://api.elevenlabs.io/v1/sound-generation", {
@@ -32,17 +34,22 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
       }),
     });
 
+    console.log("ElevenLabs API response status:", response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
+      console.error("ElevenLabs API error response:", errorText);
       throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
     }
 
     // Check if response is JSON or audio
     const contentType = response.headers.get("content-type");
+    console.log("Response content type:", contentType);
     
     if (contentType?.includes("application/json")) {
       // If JSON, it might be a job ID for async processing
       const jsonResponse = await response.json();
+      console.log("JSON response from ElevenLabs:", jsonResponse);
       
       if (jsonResponse.audio_url) {
         return {
@@ -53,17 +60,20 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
         throw new Error("Unexpected JSON response from ElevenLabs API");
       }
     } else {
-      // If audio data, convert to blob and create URL
-      const audioBlob = await response.blob();
+      // If audio data, save to file system and return local URL
+      const audioBuffer = await response.arrayBuffer();
       
-      // In a real production environment, you would:
-      // 1. Save the blob to a file storage service (AWS S3, Cloudinary, etc.)
-      // 2. Return the permanent URL
-      // For this demo, we'll create a temporary blob URL
-      const audioUrl = URL.createObjectURL(audioBlob);
+      // Create a filename based on timestamp and prompt
+      const filename = `soundscape_${Date.now()}.mp3`;
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      
+      // Save to the client's public audio directory
+      const audioPath = path.join(process.cwd(), 'client', 'public', 'audio', filename);
+      await fs.writeFile(audioPath, Buffer.from(audioBuffer));
       
       return {
-        audioUrl,
+        audioUrl: `/audio/${filename}`,
         duration: request.duration,
       };
     }

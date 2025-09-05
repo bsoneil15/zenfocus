@@ -86,10 +86,7 @@ export function useAudioManager() {
   }, [stopCurrentAudio]);
 
   const playPredefinedSoundscape = useCallback(async (type: "rain" | "coffee") => {
-    // Import the local audio files using @assets alias
-    const audioData = type === "rain" 
-      ? "/attached_assets/rainfall_in_a_jungle-1757090030727_1757091361689.mp3"
-      : "/attached_assets/coffee_shop_in_nyc,_-#3-1757090374207_1757091361687.mp3";
+    const audioData = type === "rain" ? "/audio/rain.mp3" : "/audio/coffee.mp3";
     
     try {
       const audioBuffer = await createAudioBuffer(audioData, audioContextRef.current!);
@@ -150,23 +147,32 @@ export function useAudioManager() {
     if (!audioContextRef.current) return;
 
     try {
-      // Create a simple notification beep using Web Audio API
-      const oscillator = audioContextRef.current.createOscillator();
-      const gainNode = audioContextRef.current.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContextRef.current.destination);
-      
-      oscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
-      oscillator.frequency.setValueAtTime(600, audioContextRef.current.currentTime + 0.1);
-      
-      gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.3);
-      
-      oscillator.start(audioContextRef.current.currentTime);
-      oscillator.stop(audioContextRef.current.currentTime + 0.3);
+      // Try to play the custom notification sound first
+      const audioBuffer = await createAudioBuffer("/audio/notification.mp3", audioContextRef.current);
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+      source.start();
     } catch (error) {
-      console.error("Failed to play notification sound:", error);
+      // Fallback to generated beep if custom sound fails
+      try {
+        const oscillator = audioContextRef.current.createOscillator();
+        const gainNode = audioContextRef.current.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContextRef.current.destination);
+        
+        oscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
+        oscillator.frequency.setValueAtTime(600, audioContextRef.current.currentTime + 0.1);
+        
+        gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.3);
+        
+        oscillator.start(audioContextRef.current.currentTime);
+        oscillator.stop(audioContextRef.current.currentTime + 0.3);
+      } catch (fallbackError) {
+        console.error("Failed to play notification sound:", fallbackError);
+      }
     }
   }, []);
 

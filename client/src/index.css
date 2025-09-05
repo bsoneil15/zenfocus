@@ -115,9 +115,9 @@
 @layer components {
   .timer-progress {
     transform: rotate(-90deg);
-    stroke-dasharray: 628.32;
-    stroke-dashoffset: 628.32;
-    transition: stroke-dashoffset 1s ease-in-out;
+    stroke-dasharray: 565.48; /* 2 * π * 90 */
+    stroke-dashoffset: 565.48;
+    transition: stroke-dashoffset 0.3s ease-out;
   }
 
   .pulse-ring {

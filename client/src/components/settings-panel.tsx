@@ -8,6 +8,7 @@ import type { PomodoroSettings } from "@/hooks/use-pomodoro-timer";
 interface SettingsPanelProps {
   isOpen: boolean;
   settings: PomodoroSettings;
+  notificationPermission: NotificationPermission;
   onClose: () => void;
   onUpdateSettings: (settings: Partial<PomodoroSettings>) => void;
   onRequestNotifications: () => void;
@@ -16,6 +17,7 @@ interface SettingsPanelProps {
 export function SettingsPanel({
   isOpen,
   settings,
+  notificationPermission,
   onClose,
   onUpdateSettings,
   onRequestNotifications,
@@ -89,9 +91,16 @@ export function SettingsPanel({
           </div>
           
           <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium text-foreground">
-              Notifications
-            </Label>
+            <div className="flex flex-col">
+              <Label className="text-sm font-medium text-foreground">
+                Notifications
+              </Label>
+              <span className="text-xs text-muted-foreground">
+                {notificationPermission === "granted" ? "✓ Enabled" : 
+                 notificationPermission === "denied" ? "✗ Blocked" : 
+                 "Click to enable"}
+              </span>
+            </div>
             <Switch
               checked={settings.notifications}
               onCheckedChange={(checked) => {

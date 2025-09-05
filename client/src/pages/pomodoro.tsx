@@ -62,10 +62,30 @@ export default function PomodoroPage() {
       // Play notification sound
       playNotificationSound();
       
-      // Show browser notification
-      if (settings.notifications && notificationPermission === "granted") {
-        showTimerNotification(timerState.mode === "focus");
-      }
+      // Handle notifications
+      const handleNotifications = async () => {
+        if (settings.notifications) {
+          if (notificationPermission === "default") {
+            // Request permission with a toast first
+            toast({
+              title: "Enable Notifications?",
+              description: "Get notified when your timer completes. Click to enable.",
+              action: (
+                <button 
+                  onClick={requestPermission}
+                  className="text-primary underline"
+                >
+                  Enable
+                </button>
+              ),
+            });
+          } else if (notificationPermission === "granted") {
+            showTimerNotification(timerState.mode === "focus");
+          }
+        }
+      };
+
+      handleNotifications();
       
       // Show toast notification
       toast({
@@ -217,6 +237,7 @@ export default function PomodoroPage() {
       <SettingsPanel
         isOpen={isSettingsOpen}
         settings={settings}
+        notificationPermission={notificationPermission}
         onClose={() => setIsSettingsOpen(false)}
         onUpdateSettings={updateSettings}
         onRequestNotifications={requestPermission}

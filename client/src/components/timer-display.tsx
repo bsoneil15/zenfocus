@@ -54,8 +54,14 @@ export function TimerDisplay({
           fill="none"
           stroke="currentColor"
           strokeWidth="4"
-          className="text-primary timer-progress"
-          style={{ strokeDashoffset }}
+          className="text-primary"
+          style={{ 
+            strokeDasharray: circumference,
+            strokeDashoffset: strokeDashoffset,
+            transform: 'rotate(-90deg)',
+            transformOrigin: '50% 50%',
+            transition: 'stroke-dashoffset 0.3s ease-out'
+          }}
         />
       </svg>
       

@@ -47,11 +47,11 @@ export function AudioControls({
           </div>
         </div>
         
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-3 gap-3 mb-4">
           <Button
             variant={currentSoundscape === "none" ? "default" : "ghost"}
             size="sm"
-            className="p-3 text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+            className="py-4 px-3 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-2"
             onClick={() => onSoundscapeChange("none")}
             data-testid="soundscape-none"
           >
@@ -62,7 +62,7 @@ export function AudioControls({
           <Button
             variant={currentSoundscape === "rain" ? "default" : "ghost"}
             size="sm"
-            className="p-3 text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+            className="py-4 px-3 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-2"
             onClick={() => onSoundscapeChange("rain")}
             data-testid="soundscape-rain"
           >
@@ -73,7 +73,7 @@ export function AudioControls({
           <Button
             variant={currentSoundscape === "coffee" ? "default" : "ghost"}
             size="sm"
-            className="p-3 text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+            className="py-4 px-3 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-2"
             onClick={() => onSoundscapeChange("coffee")}
             data-testid="soundscape-coffee"
           >
@@ -84,13 +84,13 @@ export function AudioControls({
         
         {/* Custom Soundscapes */}
         {customSoundscapes.length > 0 && (
-          <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-4">
             {customSoundscapes.slice(0, 4).map((soundscape) => (
               <Button
                 key={soundscape.id}
                 variant={currentSoundscape === "custom" ? "default" : "ghost"}
                 size="sm"
-                className="p-2 text-xs font-medium transition-all duration-200 active:scale-95"
+                className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95"
                 onClick={() => onSoundscapeChange("custom", soundscape.id)}
                 data-testid={`custom-soundscape-${soundscape.id}`}
               >
@@ -125,7 +125,7 @@ export function AudioControls({
         
         <Button
           variant="outline"
-          className="w-full transition-all duration-200 active:scale-95"
+          className="w-full py-3 h-auto transition-all duration-200 active:scale-95"
           onClick={onGenerateAI}
           data-testid="button-generate-ai"
         >

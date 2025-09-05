@@ -29,9 +29,18 @@ export async function generateFocusPrompts(): Promise<FocusPromptSuggestion[]> {
       max_completion_tokens: 300,
     });
 
-    const result = JSON.parse(response.choices[0].message.content || "{}");
+    const content = response.choices[0].message.content || "{}";
+    let result;
+    
+    try {
+      result = JSON.parse(content);
+    } catch (parseError) {
+      console.error("Failed to parse OpenAI response:", content);
+      throw new Error("Invalid JSON response from OpenAI");
+    }
     
     if (!result.suggestions || !Array.isArray(result.suggestions)) {
+      console.log("OpenAI response missing suggestions:", result);
       throw new Error("Invalid response format from OpenAI");
     }
 

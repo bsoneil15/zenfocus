@@ -67,7 +67,7 @@ export function AIGeneratorPanel({
     try {
       const response = await apiRequest("POST", "/api/soundscapes/generate", {
         prompt: customPrompt.trim(),
-        duration: 30,
+        duration: 20,
         looping: true,
       });
       

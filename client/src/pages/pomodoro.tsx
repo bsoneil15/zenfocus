@@ -42,7 +42,9 @@ export default function PomodoroPage() {
   const {
     currentSoundscape,
     customSoundscapes,
+    volume,
     isPlaying,
+    setVolume,
     setSoundscape,
     addCustomSoundscape,
     playNotificationSound,
@@ -197,7 +199,9 @@ export default function PomodoroPage() {
         <AudioControls
           currentSoundscape={currentSoundscape}
           customSoundscapes={customSoundscapes}
+          volume={volume}
           isPlaying={isPlaying}
+          onVolumeChange={setVolume}
           onSoundscapeChange={handleSoundscapeChange}
           onGenerateAI={() => setIsAIGeneratorOpen(true)}
         />

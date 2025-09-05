@@ -1,13 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { VolumeX, Cloud, Coffee, Sparkles } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { VolumeX, Volume2, Cloud, Coffee, Sparkles } from "lucide-react";
 import type { SoundscapeType, CustomSoundscape } from "@/hooks/use-audio-manager";
 
 interface AudioControlsProps {
   currentSoundscape: SoundscapeType;
   customSoundscapes: CustomSoundscape[];
   isPlaying: boolean;
+  volume: number;
   onSoundscapeChange: (type: SoundscapeType, customId?: string) => void;
+  onVolumeChange: (volume: number) => void;
   onGenerateAI: () => void;
 }
 
@@ -15,7 +18,9 @@ export function AudioControls({
   currentSoundscape,
   customSoundscapes,
   isPlaying,
+  volume,
   onSoundscapeChange,
+  onVolumeChange,
   onGenerateAI,
 }: AudioControlsProps) {
   const soundwaveBars = Array.from({ length: 4 }, (_, i) => (
@@ -94,6 +99,29 @@ export function AudioControls({
             ))}
           </div>
         )}
+        
+        {/* Volume Control */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center justify-center w-8 h-8">
+            {volume === 0 ? (
+              <VolumeX className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Volume2 className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+          <Slider
+            value={[volume * 100]}
+            onValueChange={(value) => onVolumeChange(value[0] / 100)}
+            max={100}
+            min={0}
+            step={5}
+            className="flex-1"
+            data-testid="volume-slider"
+          />
+          <span className="text-xs text-muted-foreground w-8 text-center">
+            {Math.round(volume * 100)}%
+          </span>
+        </div>
         
         <Button
           variant="outline"

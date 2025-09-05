@@ -89,18 +89,28 @@ export function AudioControls({
         {/* Pack Soundscapes (unlocked) */}
         {packSoundscapes.length > 0 && (
           <div className="grid grid-cols-2 gap-3 mb-4">
-            {packSoundscapes.slice(0, 4).map((soundscape) => (
-              <Button
-                key={soundscape.id}
-                variant={currentSoundscape === "pack" ? "default" : "ghost"}
-                size="sm"
-                className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95"
-                onClick={() => onSoundscapeChange("pack", soundscape.id)}
-                data-testid={`pack-soundscape-${soundscape.id}`}
-              >
-                {soundscape.name}
-              </Button>
-            ))}
+            {packSoundscapes.slice(0, 4).map((soundscape) => {
+              const getEmoji = (name: string) => {
+                if (name.toLowerCase().includes('park')) return '🌳';
+                if (name.toLowerCase().includes('thunder') || name.toLowerCase().includes('storm')) return '⛈️';
+                if (name.toLowerCase().includes('jazz') || name.toLowerCase().includes('bar')) return '🎷';
+                return '⭐';
+              };
+              
+              return (
+                <Button
+                  key={soundscape.id}
+                  variant={currentSoundscape === "pack" ? "default" : "ghost"}
+                  size="sm"
+                  className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+                  onClick={() => onSoundscapeChange("pack", soundscape.id)}
+                  data-testid={`pack-soundscape-${soundscape.id}`}
+                >
+                  <span className="text-sm">{getEmoji(soundscape.name)}</span>
+                  {soundscape.name}
+                </Button>
+              );
+            })}
           </div>
         )}
         

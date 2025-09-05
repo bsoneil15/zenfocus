@@ -64,6 +64,13 @@ export function AIGeneratorPanel({
     }
 
     setIsGenerating(true);
+    
+    // Show "this may take a moment" toast
+    toast({
+      title: "Generating soundscape...",
+      description: "This may take a moment",
+    });
+    
     try {
       const response = await apiRequest("POST", "/api/soundscapes/generate", {
         prompt: customPrompt.trim(),

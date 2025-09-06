@@ -263,6 +263,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const filename = decodeURIComponent(req.params.filename);
     const filePath = path.resolve(import.meta.dirname, '..', 'attached_assets', filename);
     
+    console.log('[AUDIO DEBUG] Request for:', filename);
+    console.log('[AUDIO DEBUG] Full path:', filePath);
+    console.log('[AUDIO DEBUG] File exists:', fs.existsSync(filePath));
     
     // Security check - ensure file is in attached_assets directory
     if (!filePath.startsWith(path.resolve(import.meta.dirname, '..', 'attached_assets'))) {

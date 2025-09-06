@@ -215,9 +215,22 @@ export class MemStorage implements IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  private initialized = false;
+
   constructor() {
-    // Initialize default packs and soundscapes on first run
-    this.initializeDefaultData();
+    // Don't initialize during construction to avoid startup issues
+  }
+
+  private async ensureInitialized() {
+    if (this.initialized) return;
+    
+    try {
+      await this.initializeDefaultData();
+      this.initialized = true;
+    } catch (error) {
+      console.error("Failed to initialize database storage:", error);
+      throw error;
+    }
   }
 
   private async initializeDefaultData() {
@@ -290,16 +303,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUser(id: string): Promise<User | undefined> {
+    await this.ensureInitialized();
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
+    await this.ensureInitialized();
     const [user] = await db.select().from(users).where(eq(users.username, username));
     return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
+    await this.ensureInitialized();
     const [user] = await db
       .insert(users)
       .values(insertUser)
@@ -308,15 +324,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSoundscape(id: string): Promise<Soundscape | undefined> {
+    await this.ensureInitialized();
     const [soundscape] = await db.select().from(soundscapes).where(eq(soundscapes.id, id));
     return soundscape || undefined;
   }
 
   async getSoundscapes(): Promise<Soundscape[]> {
+    await this.ensureInitialized();
     return await db.select().from(soundscapes);
   }
 
   async createSoundscape(insertSoundscape: InsertSoundscape): Promise<Soundscape> {
+    await this.ensureInitialized();
     const [soundscape] = await db
       .insert(soundscapes)
       .values(insertSoundscape)
@@ -325,15 +344,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPomodoroSession(id: string): Promise<PomodoroSession | undefined> {
+    await this.ensureInitialized();
     const [session] = await db.select().from(pomodoroSessions).where(eq(pomodoroSessions.id, id));
     return session || undefined;
   }
 
   async getPomodoroSessions(): Promise<PomodoroSession[]> {
+    await this.ensureInitialized();
     return await db.select().from(pomodoroSessions);
   }
 
   async createPomodoroSession(insertSession: InsertPomodoroSession): Promise<PomodoroSession> {
+    await this.ensureInitialized();
     const [session] = await db
       .insert(pomodoroSessions)
       .values(insertSession)
@@ -342,11 +364,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getNewsletterSubscriber(email: string): Promise<NewsletterSubscriber | undefined> {
+    await this.ensureInitialized();
     const [subscriber] = await db.select().from(newsletterSubscribers).where(eq(newsletterSubscribers.email, email));
     return subscriber || undefined;
   }
 
   async createNewsletterSubscriber(insertSubscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber> {
+    await this.ensureInitialized();
     const [subscriber] = await db
       .insert(newsletterSubscribers)
       .values(insertSubscriber)
@@ -355,15 +379,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSoundscapePacks(): Promise<SoundscapePack[]> {
+    await this.ensureInitialized();
     return await db.select().from(soundscapePacks);
   }
 
   async getSoundscapePack(id: string): Promise<SoundscapePack | undefined> {
+    await this.ensureInitialized();
     const [pack] = await db.select().from(soundscapePacks).where(eq(soundscapePacks.id, id));
     return pack || undefined;
   }
 
   async createSoundscapePack(insertPack: InsertSoundscapePack): Promise<SoundscapePack> {
+    await this.ensureInitialized();
     const [pack] = await db
       .insert(soundscapePacks)
       .values(insertPack)
@@ -372,6 +399,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSoundscapePackUnlocked(id: string, isUnlocked: boolean): Promise<SoundscapePack | undefined> {
+    await this.ensureInitialized();
     const [pack] = await db
       .update(soundscapePacks)
       .set({ isUnlocked })

@@ -80,7 +80,7 @@ export async function generateSoundscapeName(prompt: string): Promise<string> {
       messages: [
         {
           role: "system",
-          content: `Create a short, catchy name (2-4 words) for a soundscape based on the given prompt. The name should be memorable and descriptive. Respond with JSON in this format: { "name": "Soundscape Name" }`
+          content: `Create a short, catchy name (2-4 words) for a soundscape based on the given prompt. Start the name with a relevant emoji that matches the soundscape theme, followed by the descriptive name. The name should be memorable and descriptive. Respond with JSON in this format: { "name": "🌊 Ocean Waves" }`
         },
         {
           role: "user",
@@ -92,11 +92,25 @@ export async function generateSoundscapeName(prompt: string): Promise<string> {
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
-    return result.name || "Custom Soundscape";
+    return result.name || "🎵 Custom Soundscape";
   } catch (error) {
     console.error("Failed to generate soundscape name:", error);
-    // Generate a simple fallback name
+    // Generate a simple fallback name with emoji
     const words = prompt.split(' ').slice(0, 2);
-    return words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    const name = words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    
+    // Add appropriate emoji based on keywords in prompt
+    const lowerPrompt = prompt.toLowerCase();
+    let emoji = "🎵"; // default
+    if (lowerPrompt.includes('rain') || lowerPrompt.includes('storm') || lowerPrompt.includes('thunder')) emoji = "🌧️";
+    else if (lowerPrompt.includes('ocean') || lowerPrompt.includes('wave') || lowerPrompt.includes('water')) emoji = "🌊";
+    else if (lowerPrompt.includes('fire') || lowerPrompt.includes('crackling') || lowerPrompt.includes('hearth')) emoji = "🔥";
+    else if (lowerPrompt.includes('forest') || lowerPrompt.includes('bird') || lowerPrompt.includes('tree')) emoji = "🌳";
+    else if (lowerPrompt.includes('wind') || lowerPrompt.includes('breeze') || lowerPrompt.includes('air')) emoji = "🌬️";
+    else if (lowerPrompt.includes('coffee') || lowerPrompt.includes('cafe') || lowerPrompt.includes('shop')) emoji = "☕";
+    else if (lowerPrompt.includes('night') || lowerPrompt.includes('evening') || lowerPrompt.includes('moon')) emoji = "🌙";
+    else if (lowerPrompt.includes('city') || lowerPrompt.includes('urban') || lowerPrompt.includes('street')) emoji = "🏙️";
+    
+    return `${emoji} ${name}`;
   }
 }

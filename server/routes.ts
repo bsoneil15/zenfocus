@@ -260,42 +260,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve audio files
   app.get("/api/audio/:filename", (req, res) => {
-    const filename = decodeURIComponent(req.params.filename);
-    const filePath = path.resolve(import.meta.dirname, '..', 'attached_assets', filename);
-    
-    console.log('[AUDIO DEBUG] Request for:', filename);
-    console.log('[AUDIO DEBUG] Full path:', filePath);
-    console.log('[AUDIO DEBUG] File exists:', fs.existsSync(filePath));
-    
-    // Security check - ensure file is in attached_assets directory
-    if (!filePath.startsWith(path.resolve(import.meta.dirname, '..', 'attached_assets'))) {
-      console.error('Security violation: attempted to access file outside assets:', filename);
-      return res.status(403).json({ message: 'Access denied' });
-    }
-    
-    // Set proper headers for audio files
-    res.set({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Content-Type': 'audio/mpeg',
-      'Accept-Ranges': 'bytes'
-    });
-    
-    // Check if file exists first
-    if (!fs.existsSync(filePath)) {
-      console.error('Audio file not found:', filename, 'at path:', filePath);
-      return res.status(404).json({ message: 'Audio file not found', filename });
-    }
-    
-    res.sendFile(filePath, (err) => {
-      if (err) {
-        console.error('Error serving audio file:', err);
-        if (!res.headersSent) {
+    try {
+      const filename = decodeURIComponent(req.params.filename);
+      const filePath = path.resolve(import.meta.dirname, '..', 'attached_assets', filename);
+      
+      // Security check - ensure file is in attached_assets directory
+      const assetsPath = path.resolve(import.meta.dirname, '..', 'attached_assets');
+      if (!filePath.startsWith(assetsPath)) {
+        console.error('Security violation: attempted to access file outside assets:', filename);
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      // Check if file exists first
+      if (!fs.existsSync(filePath)) {
+        console.error('Audio file not found:', filename, 'at path:', filePath);
+        return res.status(404).json({ message: 'Audio file not found', filename });
+      }
+      
+      // Set proper headers for audio files
+      res.set({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Headers': 'Content-Type, Cache-Control, Pragma, Expires',
+        'Content-Type': 'audio/mpeg',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+        'Access-Control-Max-Age': '3600'
+      });
+      
+      // Send file with error handling
+      res.sendFile(filePath, (err) => {
+        if (err && !res.headersSent) {
+          console.error('Error serving audio file:', err);
           res.status(500).json({ message: 'Error serving audio file', error: err.message });
         }
+      });
+    } catch (error) {
+      console.error('Unexpected error in audio endpoint:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'Internal server error' });
       }
-    });
+    }
   });
   
   // Health check endpoint

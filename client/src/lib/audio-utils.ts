@@ -12,7 +12,12 @@ export async function createAudioBuffer(
       const response = await fetch(audioData, {
         mode: 'cors',
         credentials: 'same-origin',
-        cache: 'force-cache'
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       });
       
       console.log('Audio fetch response:', {

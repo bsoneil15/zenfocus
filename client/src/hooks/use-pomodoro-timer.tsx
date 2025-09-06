@@ -172,7 +172,7 @@ export function usePomodoroTimer() {
 
   const getFormattedTime = useCallback(() => {
     const minutes = Math.ceil(state.currentTime / 60);
-    return `${minutes} min`;
+    return `${minutes}m`;
   }, [state.currentTime]);
 
   const onComplete = useCallback((callback: () => void) => {

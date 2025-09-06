@@ -114,13 +114,34 @@ export function AIGeneratorPanel({
       
       setCustomPrompt("");
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to generate soundscape:", error);
-      toast({
-        title: "Error",
-        description: "Failed to generate soundscape. Please try again.",
-        variant: "destructive",
-      });
+      
+      // Handle rate limiting specifically
+      if (error.status === 429 || (error.response && error.response.status === 429)) {
+        let errorData;
+        try {
+          errorData = error.response ? await error.response.json() : error;
+        } catch {
+          errorData = { message: "Rate limit exceeded" };
+        }
+        
+        const retryMinutes = errorData.retryAfter 
+          ? Math.ceil(errorData.retryAfter / (60 * 1000))
+          : 'a few';
+        
+        toast({
+          title: "Rate Limit Exceeded",
+          description: `Too many soundscape requests. You can make ${errorData.maxRequests || 5} per hour. Try again in ${retryMinutes} minute(s).`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to generate soundscape. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsGenerating(false);
     }

@@ -6,10 +6,32 @@ import { storage } from "./storage";
 import { insertSoundscapeSchema } from "@shared/schema";
 import { generateFocusPrompts, generateSoundscapeName } from "./services/openai";
 import { generateSound } from "./services/elevenlabs";
+import { soundscapeRateLimiter, suggestionsRateLimiter } from "./middleware/rate-limiter";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Rate limit status endpoint
+  app.get("/api/rate-limit/status", (req, res) => {
+    const soundscapeStatus = soundscapeRateLimiter.getStatus(req);
+    const suggestionsStatus = suggestionsRateLimiter.getStatus(req);
+    
+    res.json({
+      soundscapeGeneration: {
+        remaining: soundscapeStatus.maxRequests - soundscapeStatus.count,
+        total: soundscapeStatus.maxRequests,
+        used: soundscapeStatus.count,
+        resetTime: soundscapeStatus.resetTime
+      },
+      suggestions: {
+        remaining: suggestionsStatus.maxRequests - suggestionsStatus.count,
+        total: suggestionsStatus.maxRequests,
+        used: suggestionsStatus.count,
+        resetTime: suggestionsStatus.resetTime
+      }
+    });
+  });
+
   // Get focus prompt suggestions from OpenAI
-  app.get("/api/soundscapes/suggestions", async (req, res) => {
+  app.get("/api/soundscapes/suggestions", suggestionsRateLimiter.middleware(), async (req, res) => {
     try {
       const suggestions = await generateFocusPrompts();
       res.json({ suggestions });
@@ -37,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate a new soundscape using ElevenLabs
-  app.post("/api/soundscapes/generate", async (req, res) => {
+  app.post("/api/soundscapes/generate", soundscapeRateLimiter.middleware(), async (req, res) => {
     try {
       const generateRequestSchema = z.object({
         prompt: z.string().min(1).max(500),

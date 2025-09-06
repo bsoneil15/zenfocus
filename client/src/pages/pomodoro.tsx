@@ -43,6 +43,7 @@ export default function PomodoroPage() {
 
   const {
     currentSoundscape,
+    currentSoundscapeId,
     customSoundscapes,
     packSoundscapes,
     volume,
@@ -233,6 +234,7 @@ export default function PomodoroPage() {
 
         <AudioControls
           currentSoundscape={currentSoundscape}
+          currentSoundscapeId={currentSoundscapeId}
           customSoundscapes={customSoundscapes}
           packSoundscapes={packSoundscapes}
           volume={volume}

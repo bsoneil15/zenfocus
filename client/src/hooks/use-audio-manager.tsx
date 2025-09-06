@@ -21,6 +21,7 @@ export interface PackSoundscape {
 
 export function useAudioManager() {
   const [currentSoundscape, setCurrentSoundscape] = useState<SoundscapeType>("none");
+  const [currentSoundscapeId, setCurrentSoundscapeId] = useState<string | null>(null);
   const [customSoundscapes, setCustomSoundscapes] = useState<CustomSoundscape[]>([]);
   const [packSoundscapes, setPackSoundscapes] = useState<PackSoundscape[]>([]);
   const [volume, setVolume] = useState(0.3);
@@ -134,6 +135,7 @@ export function useAudioManager() {
 
   const setSoundscape = useCallback(async (type: SoundscapeType, customId?: string) => {
     setCurrentSoundscape(type);
+    setCurrentSoundscapeId(customId || null);
 
     if (type === "none") {
       stopCurrentAudio();
@@ -244,6 +246,7 @@ export function useAudioManager() {
 
   return {
     currentSoundscape,
+    currentSoundscapeId,
     customSoundscapes,
     packSoundscapes,
     volume,

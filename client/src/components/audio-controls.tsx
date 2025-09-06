@@ -6,6 +6,7 @@ import type { SoundscapeType, CustomSoundscape, PackSoundscape } from "@/hooks/u
 
 interface AudioControlsProps {
   currentSoundscape: SoundscapeType;
+  currentSoundscapeId: string | null;
   customSoundscapes: CustomSoundscape[];
   packSoundscapes: PackSoundscape[];
   isPlaying: boolean;
@@ -18,6 +19,7 @@ interface AudioControlsProps {
 
 export function AudioControls({
   currentSoundscape,
+  currentSoundscapeId,
   customSoundscapes,
   packSoundscapes,
   isPlaying,
@@ -100,7 +102,7 @@ export function AudioControls({
               return (
                 <Button
                   key={soundscape.id}
-                  variant={currentSoundscape === "pack" ? "default" : "ghost"}
+                  variant={currentSoundscape === "pack" && currentSoundscapeId === soundscape.id ? "default" : "ghost"}
                   size="sm"
                   className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
                   onClick={() => onSoundscapeChange("pack", soundscape.id)}
@@ -145,7 +147,7 @@ export function AudioControls({
             {customSoundscapes.slice(0, 4).map((soundscape) => (
               <Button
                 key={soundscape.id}
-                variant={currentSoundscape === "custom" ? "default" : "ghost"}
+                variant={currentSoundscape === "custom" && currentSoundscapeId === soundscape.id ? "default" : "ghost"}
                 size="sm"
                 className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95"
                 onClick={() => onSoundscapeChange("custom", soundscape.id)}

@@ -68,12 +68,12 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
       const fs = await import('fs/promises');
       const path = await import('path');
       
-      // Save to the client's public audio directory
-      const audioPath = path.join(process.cwd(), 'client', 'public', 'audio', filename);
+      // Save to the attached_assets directory (where audio files are served from)
+      const audioPath = path.join(process.cwd(), 'attached_assets', filename);
       await fs.writeFile(audioPath, Buffer.from(audioBuffer));
       
       return {
-        audioUrl: `/audio/${filename}`,
+        audioUrl: `/api/audio/${filename}`,
         duration: request.duration,
       };
     }

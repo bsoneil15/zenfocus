@@ -264,6 +264,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filename = decodeURIComponent(req.params.filename);
       const filePath = path.resolve(import.meta.dirname, '..', 'attached_assets', filename);
       
+      console.log('Audio file request:', {
+        originalParam: req.params.filename,
+        decodedFilename: filename,
+        resolvedPath: filePath
+      });
+      
       // Security check - ensure file is in attached_assets directory
       const assetsPath = path.resolve(import.meta.dirname, '..', 'attached_assets');
       if (!filePath.startsWith(assetsPath)) {

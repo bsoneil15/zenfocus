@@ -57,7 +57,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Generate a name for the soundscape using OpenAI
-      const name = await generateSoundscapeName(validatedData.prompt);
+      console.log("About to call generateSoundscapeName with prompt:", validatedData.prompt);
+      let name;
+      try {
+        name = await generateSoundscapeName(validatedData.prompt);
+        console.log("Received name from generateSoundscapeName:", name);
+      } catch (nameError) {
+        console.error("Error in generateSoundscapeName:", nameError);
+        name = "🎵 Custom Soundscape";
+      }
 
       // Store the soundscape in our storage
       const soundscape = await storage.createSoundscape({

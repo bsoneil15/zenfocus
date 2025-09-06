@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { VolumeX, Volume2, Cloud, Coffee, Sparkles, Package } from "lucide-react";
+import { VolumeX, Volume2, Cloud, Coffee, Sparkles, Package, Star } from "lucide-react";
 import type { SoundscapeType, CustomSoundscape, PackSoundscape } from "@/hooks/use-audio-manager";
 
 interface AudioControlsProps {
@@ -104,10 +104,11 @@ export function AudioControls({
                   key={soundscape.id}
                   variant={currentSoundscape === "pack" && currentSoundscapeId === soundscape.id ? "default" : "ghost"}
                   size="sm"
-                  className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+                  className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1 relative"
                   onClick={() => onSoundscapeChange("pack", soundscape.id)}
                   data-testid={`pack-soundscape-${soundscape.id}`}
                 >
+                  <Star className="absolute top-1 right-1 h-3 w-3 text-muted-foreground/60" />
                   <span className="text-sm">{getEmoji(soundscape.name)}</span>
                   {soundscape.name}
                 </Button>

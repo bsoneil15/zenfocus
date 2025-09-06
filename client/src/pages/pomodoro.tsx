@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Brain, Settings, Moon, Sun } from "lucide-react";
+import { Headphones, Settings, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePomodoroTimer } from "@/hooks/use-pomodoro-timer";
@@ -183,7 +183,7 @@ export default function PomodoroPage() {
       <header className="flex items-center justify-between p-4 sm:p-6 bg-card/50 backdrop-blur-sm border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Brain className="h-4 w-4 text-primary-foreground" />
+            <Headphones className="h-4 w-4 text-primary-foreground" />
           </div>
           <h1 className="text-lg font-semibold text-foreground">Focus Flow</h1>
         </div>

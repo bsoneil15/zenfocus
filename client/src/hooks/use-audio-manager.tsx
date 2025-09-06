@@ -158,11 +158,13 @@ export function useAudioManager() {
   }, [stopCurrentAudio, playPredefinedSoundscape, playCustomSoundscape, playPackSoundscape, customSoundscapes, packSoundscapes]);
 
   const addCustomSoundscape = useCallback((soundscape: CustomSoundscape) => {
-    setCustomSoundscapes(prev => [...prev, soundscape]);
-    // Store in localStorage
-    const updated = [...customSoundscapes, soundscape];
-    localStorage.setItem("custom-soundscapes", JSON.stringify(updated));
-  }, [customSoundscapes]);
+    setCustomSoundscapes(prev => {
+      const updated = [...prev, soundscape];
+      // Store in localStorage
+      localStorage.setItem("custom-soundscapes", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   // Load custom soundscapes from localStorage on mount
   useEffect(() => {

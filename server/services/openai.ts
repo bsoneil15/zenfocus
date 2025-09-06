@@ -14,7 +14,7 @@ export interface FocusPromptSuggestion {
 export async function generateFocusPrompts(): Promise<FocusPromptSuggestion[]> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5-nano-2025-08-07",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",

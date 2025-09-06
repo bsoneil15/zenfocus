@@ -7,11 +7,24 @@ export async function createAudioBuffer(
     
     if (typeof audioData === "string") {
       // If it's a URL, fetch the audio data
-      const response = await fetch(audioData);
+      const response = await fetch(audioData, {
+        mode: 'cors',
+        credentials: 'same-origin'
+      });
       if (!response.ok) {
-        throw new Error(`Failed to fetch audio: ${response.statusText}`);
+        throw new Error(`Failed to fetch audio from ${audioData}: ${response.status} ${response.statusText}`);
       }
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('audio')) {
+        throw new Error(`Invalid content type: ${contentType}. Expected audio file.`);
+      }
+      
       arrayBuffer = await response.arrayBuffer();
+      
+      if (arrayBuffer.byteLength === 0) {
+        throw new Error('Audio file is empty or corrupted');
+      }
     } else {
       arrayBuffer = audioData;
     }
@@ -20,7 +33,7 @@ export async function createAudioBuffer(
     return audioBuffer;
   } catch (error) {
     console.error("Failed to create audio buffer:", error);
-    throw error;
+    throw new Error(`Audio processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

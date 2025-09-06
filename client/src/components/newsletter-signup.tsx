@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, Gift, CheckCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +15,7 @@ export function NewsletterSignup({ onUnlockPacks }: NewsletterSignupProps) {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [consentChecked, setConsentChecked] = useState(false);
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,6 +25,15 @@ export function NewsletterSignup({ onUnlockPacks }: NewsletterSignupProps) {
       toast({
         title: "Email required",
         description: "Please enter your email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!consentChecked) {
+      toast({
+        title: "Consent required",
+        description: "Please confirm you want to subscribe to our newsletter",
         variant: "destructive",
       });
       return;
@@ -115,10 +126,26 @@ export function NewsletterSignup({ onUnlockPacks }: NewsletterSignupProps) {
               />
             </div>
             
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="newsletter-consent"
+                checked={consentChecked}
+                onCheckedChange={(checked) => setConsentChecked(checked === true)}
+                disabled={isSubmitting}
+                data-testid="checkbox-newsletter-consent"
+              />
+              <label
+                htmlFor="newsletter-consent"
+                className="text-xs text-muted-foreground leading-4 cursor-pointer"
+              >
+                I agree to receive email communications and newsletters. You can unsubscribe at any time.
+              </label>
+            </div>
+            
             <Button
               type="submit"
               className="w-full"
-              disabled={isSubmitting || !email.trim()}
+              disabled={isSubmitting || !email.trim() || !consentChecked}
               data-testid="button-newsletter-signup"
             >
               {isSubmitting ? (

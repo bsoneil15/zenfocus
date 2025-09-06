@@ -139,20 +139,20 @@ export function AIGeneratorPanel({
       data-testid="ai-generator-panel"
     >
       <div 
-        className={`absolute bottom-0 left-0 right-0 bg-card border-t border-border rounded-t-3xl p-6 transform transition-transform duration-300 ${
+        className={`absolute bottom-0 left-0 right-0 bg-card border-t border-border rounded-t-3xl p-4 sm:p-6 transform transition-transform duration-300 max-h-[90vh] overflow-y-auto ${
           isOpen ? "translate-y-0" : "translate-y-full"
         }`}
       >
         <div className="w-12 h-1 bg-muted rounded-full mx-auto mb-6" />
         
-        <h2 className="text-lg font-semibold text-foreground mb-2">
+        <h2 className="text-base sm:text-lg font-semibold text-foreground mb-2">
           AI Soundscape Generator
         </h2>
-        <p className="text-sm text-muted-foreground mb-2">
+        <p className="text-xs sm:text-sm text-muted-foreground mb-2">
           Generate custom focus soundscapes using AI
         </p>
-        <div className="flex items-center justify-between mb-6">
-          <div className={`text-xs px-2 py-1 rounded-full ${
+        <div className="flex items-center justify-center mb-4 sm:mb-6">
+          <div className={`text-xs px-3 py-1 rounded-full text-center ${
             canGenerate ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
                         : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
           }`}>
@@ -163,8 +163,8 @@ export function AIGeneratorPanel({
           </div>
         </div>
         
-        <div className="space-y-4 mb-6">
-          <h3 className="text-sm font-medium text-foreground">
+        <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+          <h3 className="text-xs sm:text-sm font-medium text-foreground">
             Suggested Prompts
           </h3>
           
@@ -178,7 +178,7 @@ export function AIGeneratorPanel({
                 <Button
                   key={suggestion.id}
                   variant="outline"
-                  className="w-full p-3 text-left text-sm h-auto"
+                  className="w-full p-2 sm:p-3 text-left text-xs sm:text-sm h-auto whitespace-normal leading-relaxed"
                   onClick={() => selectPrompt(suggestion)}
                   data-testid={`suggestion-${suggestion.id}`}
                 >
@@ -189,24 +189,24 @@ export function AIGeneratorPanel({
           )}
         </div>
         
-        <div className="mb-6">
-          <Label className="text-sm font-medium text-foreground mb-2 block">
+        <div className="mb-4 sm:mb-6">
+          <Label className="text-xs sm:text-sm font-medium text-foreground mb-2 block">
             Custom Prompt
           </Label>
           <Textarea
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
             placeholder="Describe your ideal focus soundscape..."
-            rows={3}
-            className="resize-none"
+            rows={2}
+            className="resize-none text-xs sm:text-sm"
             data-testid="textarea-custom-prompt"
           />
         </div>
         
-        <div className="flex gap-3">
+        <div className="flex gap-2 sm:gap-3">
           <Button
             variant="outline"
-            className="flex-1 transition-colors active:scale-95"
+            className="flex-1 transition-colors active:scale-95 text-xs sm:text-sm py-2 sm:py-3"
             onClick={onClose}
             disabled={isGenerating}
             data-testid="button-cancel-generate"
@@ -214,7 +214,7 @@ export function AIGeneratorPanel({
             Cancel
           </Button>
           <Button
-            className="flex-1 transition-colors active:scale-95"
+            className="flex-1 transition-colors active:scale-95 text-xs sm:text-sm py-2 sm:py-3"
             onClick={generateSoundscape}
             disabled={isGenerating || !customPrompt.trim() || !canGenerate}
             data-testid="button-generate-soundscape"

@@ -28,7 +28,7 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
       },
       body: JSON.stringify({
         text: request.prompt,
-        duration_seconds: request.duration,
+        duration_seconds: Math.min(request.duration, 22),
         prompt_influence: request.promptInfluence || 0.7,
         looping: request.looping || false,
       }),

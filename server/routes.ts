@@ -41,7 +41,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const generateRequestSchema = z.object({
         prompt: z.string().min(1).max(500),
-        duration: z.number().min(22).max(30).default(25),
+        duration: z.number().min(21).max(22).default(22),
         looping: z.boolean().default(true),
         promptInfluence: z.number().min(0).max(1).default(0.7),
       });

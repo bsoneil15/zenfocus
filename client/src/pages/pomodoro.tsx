@@ -252,6 +252,11 @@ export default function PomodoroPage() {
         />
       </main>
 
+      {/* Footer */}
+      <footer className="text-center py-4 text-sm text-muted-foreground border-t border-border">
+        🎧⏳ Built by Brendan O'Neil with Replit, elevenlabs and OpenAI
+      </footer>
+
       {/* Panels */}
       <SettingsPanel
         isOpen={isSettingsOpen}

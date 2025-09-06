@@ -36,9 +36,14 @@ export function useNotifications() {
         });
 
         // Auto-close notification after 5 seconds
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           notification.close();
         }, 5000);
+
+        // Clean up timeout if notification is closed manually
+        notification.addEventListener('close', () => {
+          clearTimeout(timeoutId);
+        });
 
         return notification;
       } catch (error) {

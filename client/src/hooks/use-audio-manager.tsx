@@ -89,9 +89,13 @@ export function useAudioManager() {
       source.loop = true;
       source.connect(gainNodeRef.current);
       
+      // Only handle onended for manual stops, not natural loops
       source.onended = () => {
-        console.log('Audio source ended');
-        setIsPlaying(false);
+        // This should only fire when we manually stop the source
+        if (audioSourceRef.current === source) {
+          console.log('Audio source ended (manual stop)');
+          setIsPlaying(false);
+        }
       };
       
       source.start(0);

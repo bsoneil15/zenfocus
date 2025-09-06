@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import path from "path";
+import fs from "fs";
 import { storage } from "./storage";
 import { insertSoundscapeSchema } from "@shared/schema";
 import { generateFocusPrompts, generateSoundscapeName } from "./services/openai";
@@ -262,9 +263,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const filename = decodeURIComponent(req.params.filename);
     const filePath = path.resolve(import.meta.dirname, '..', 'attached_assets', filename);
     
-    console.log('Audio request - raw filename:', req.params.filename);
-    console.log('Audio request - decoded filename:', filename);
-    console.log('Audio request - full path:', filePath);
     
     // Security check - ensure file is in attached_assets directory
     if (!filePath.startsWith(path.resolve(import.meta.dirname, '..', 'attached_assets'))) {
@@ -282,21 +280,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     
     // Check if file exists first
-    const fs = require('fs');
     if (!fs.existsSync(filePath)) {
       console.error('Audio file not found:', filename, 'at path:', filePath);
-      // List available files for debugging
-      const assetsDir = path.resolve(import.meta.dirname, '..', 'attached_assets');
-      try {
-        const availableFiles = fs.readdirSync(assetsDir).filter((f: string) => f.endsWith('.mp3'));
-        console.log('Available audio files:', availableFiles);
-      } catch (listErr) {
-        console.error('Could not list assets directory:', listErr);
-      }
       return res.status(404).json({ message: 'Audio file not found', filename });
     }
     
-    console.log('Serving audio file successfully:', filename);
     res.sendFile(filePath, (err) => {
       if (err) {
         console.error('Error serving audio file:', err);

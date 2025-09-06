@@ -7,17 +7,28 @@ export async function createAudioBuffer(
     
     if (typeof audioData === "string") {
       // If it's a URL, fetch the audio data
+      console.log('Fetching audio from URL:', audioData);
+      
       const response = await fetch(audioData, {
         mode: 'cors',
-        credentials: 'same-origin'
+        credentials: 'same-origin',
+        cache: 'force-cache'
       });
+      
+      console.log('Audio fetch response:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+        contentLength: response.headers.get('content-length')
+      });
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch audio from ${audioData}: ${response.status} ${response.statusText}`);
       }
       
       const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('audio')) {
-        throw new Error(`Invalid content type: ${contentType}. Expected audio file.`);
+      if (!contentType || (!contentType.includes('audio') && !contentType.includes('application/octet-stream'))) {
+        console.warn(`Unexpected content type: ${contentType}, but proceeding anyway`);
       }
       
       arrayBuffer = await response.arrayBuffer();
@@ -25,14 +36,21 @@ export async function createAudioBuffer(
       if (arrayBuffer.byteLength === 0) {
         throw new Error('Audio file is empty or corrupted');
       }
+      
+      console.log('Audio buffer created successfully, size:', arrayBuffer.byteLength, 'bytes');
     } else {
       arrayBuffer = audioData;
     }
     
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    console.log('Audio decoded successfully, duration:', audioBuffer.duration, 'seconds');
     return audioBuffer;
   } catch (error) {
-    console.error("Failed to create audio buffer:", error);
+    console.error("Failed to create audio buffer:", {
+      url: typeof audioData === 'string' ? audioData : 'ArrayBuffer',
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined
+    });
     throw new Error(`Audio processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

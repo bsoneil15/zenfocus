@@ -84,7 +84,7 @@ export class MemStorage implements IStorage {
       id: "pack-1",
       name: "Pack 1",
       description: "Premium soundscape collection featuring city park, distant thunder, and jazz bar ambience",
-      isUnlocked: false,
+      isUnlocked: true, // Unlock by default for testing
       unlockedBy: "newsletter",
       soundscapeIds: ["city-park", "distant-thunder", "jazz-bar"],
       createdAt: new Date()

@@ -70,12 +70,17 @@ export function useAudioManager() {
   }, []);
 
   const playAudioBuffer = useCallback(async (audioBuffer: AudioBuffer) => {
-    if (!audioContextRef.current || !gainNodeRef.current) return;
+    if (!audioContextRef.current || !gainNodeRef.current) {
+      console.error('Audio context or gain node not initialized');
+      return;
+    }
 
     stopCurrentAudio();
 
     try {
+      // Ensure audio context is running
       if (audioContextRef.current.state === "suspended") {
+        console.log('Resuming suspended audio context');
         await audioContextRef.current.resume();
       }
 
@@ -83,16 +88,24 @@ export function useAudioManager() {
       source.buffer = audioBuffer;
       source.loop = true;
       source.connect(gainNodeRef.current);
-      source.start(0);
       
-      audioSourceRef.current = source;
-      setIsPlaying(true);
-
       source.onended = () => {
+        console.log('Audio source ended');
         setIsPlaying(false);
       };
+      
+      source.start(0);
+      audioSourceRef.current = source;
+      setIsPlaying(true);
+      
+      console.log('Audio playback started successfully');
     } catch (error) {
-      console.error("Failed to play audio:", error);
+      console.error("Failed to play audio:", {
+        error: error instanceof Error ? error.message : error,
+        audioContextState: audioContextRef.current?.state,
+        bufferDuration: audioBuffer?.duration
+      });
+      setIsPlaying(false);
     }
   }, [stopCurrentAudio]);
 
@@ -109,15 +122,31 @@ export function useAudioManager() {
 
   const playCustomSoundscape = useCallback(async (soundscape: CustomSoundscape) => {
     try {
-      const audioBuffer = await createAudioBuffer(soundscape.audioUrl, audioContextRef.current!);
+      // Ensure audio context is ready
+      if (!audioContextRef.current) {
+        throw new Error('Audio context not initialized');
+      }
+      
+      console.log('Attempting to play custom soundscape:', soundscape.name, 'from URL:', soundscape.audioUrl);
+      const audioBuffer = await createAudioBuffer(soundscape.audioUrl, audioContextRef.current);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
-      console.error("Failed to play custom soundscape:", error);
+      console.error("Failed to play custom soundscape:", {
+        soundscape: soundscape.name,
+        url: soundscape.audioUrl,
+        error: error instanceof Error ? error.message : error
+      });
+      // Don't re-throw to prevent UI crashes
     }
   }, [playAudioBuffer]);
 
   const playPackSoundscape = useCallback(async (soundscape: PackSoundscape) => {
     try {
+      // Ensure audio context is ready
+      if (!audioContextRef.current) {
+        throw new Error('Audio context not initialized');
+      }
+      
       // Convert @assets path to API endpoint
       let audioUrl = soundscape.audioUrl;
       if (audioUrl.startsWith('@assets/')) {
@@ -126,10 +155,15 @@ export function useAudioManager() {
       }
       
       console.log('Attempting to play pack soundscape from URL:', audioUrl);
-      const audioBuffer = await createAudioBuffer(audioUrl, audioContextRef.current!);
+      const audioBuffer = await createAudioBuffer(audioUrl, audioContextRef.current);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
-      console.error("Failed to play pack soundscape:", error);
+      console.error("Failed to play pack soundscape:", {
+        soundscape: soundscape.name,
+        url: soundscape.audioUrl,
+        error: error instanceof Error ? error.message : error
+      });
+      // Don't re-throw to prevent UI crashes
     }
   }, [playAudioBuffer]);
 
@@ -182,18 +216,34 @@ export function useAudioManager() {
   // Load pack soundscapes from API
   const loadPackSoundscapes = useCallback(async () => {
     try {
+      console.log('Loading pack soundscapes...');
+      
       // Check which packs are unlocked first
       const packsResponse = await apiRequest("GET", "/api/soundscape-packs");
+      if (!packsResponse.ok) {
+        throw new Error(`Packs API request failed: ${packsResponse.status} ${packsResponse.statusText}`);
+      }
+      
       const packsData = await packsResponse.json();
+      console.log('Packs data loaded:', packsData);
+      
       const unlockedPackIds = packsData.packs.filter((p: any) => p.isUnlocked).map((p: any) => p.id);
+      console.log('Unlocked pack IDs:', unlockedPackIds);
       
       if (unlockedPackIds.length === 0) {
+        console.log('No unlocked packs found, setting empty soundscapes');
         setPackSoundscapes([]);
         return;
       }
       
       const response = await apiRequest("GET", "/api/soundscapes");
+      if (!response.ok) {
+        throw new Error(`Soundscapes API request failed: ${response.status} ${response.statusText}`);
+      }
+      
       const data = await response.json();
+      console.log('Soundscapes data loaded:', data);
+      
       const packSounds: PackSoundscape[] = data.soundscapes
         .filter((s: any) => s.isPublic)
         .map((s: any) => ({
@@ -203,9 +253,16 @@ export function useAudioManager() {
           prompt: s.prompt,
           packId: 'pack-1' // For now, assume they're all in pack-1
         }));
+      
+      console.log('Processed pack soundscapes:', packSounds);
       setPackSoundscapes(packSounds);
     } catch (error) {
-      console.error("Failed to load pack soundscapes:", error);
+      console.error("Failed to load pack soundscapes:", {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      // Set empty array to prevent infinite loading states
+      setPackSoundscapes([]);
     }
   }, []);
 

@@ -61,10 +61,20 @@ export function usePomodoroTimer() {
     
     intervalRef.current = setInterval(() => {
       setState(prev => {
+        // Double-check we're still running to prevent race conditions
+        if (!prev.isRunning) {
+          return prev;
+        }
+        
         const newTime = prev.currentTime - 1;
         
         if (newTime <= 0) {
-          // Timer completed
+          // Timer completed - clear the interval here too
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          
           return {
             ...prev,
             currentTime: 0,

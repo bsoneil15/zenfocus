@@ -80,7 +80,7 @@ export function AIGeneratorPanel({
     setIsGenerating(true);
     
     // Show "this may take a moment" toast
-    toast({
+    const loadingToast = toast({
       title: "Generating soundscape...",
       description: "This may take a moment",
     });
@@ -115,7 +115,12 @@ export function AIGeneratorPanel({
       setCustomPrompt("");
       onClose();
     } catch (error: any) {
-      console.error("Failed to generate soundscape:", error);
+      console.error("Failed to generate soundscape:", {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        status: error.status,
+        response: error.response
+      });
       
       // Handle rate limiting specifically
       if (error.status === 429 || (error.response && error.response.status === 429)) {

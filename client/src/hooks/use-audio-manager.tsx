@@ -75,6 +75,12 @@ export function useAudioManager() {
       return;
     }
 
+    // Check if audio context is still valid (not closed)
+    if (audioContextRef.current.state === 'closed') {
+      console.error('Audio context has been closed');
+      return;
+    }
+
     stopCurrentAudio();
 
     try {
@@ -275,7 +281,7 @@ export function useAudioManager() {
   }, [loadPackSoundscapes]);
 
   const playNotificationSound = useCallback(async () => {
-    if (!audioContextRef.current) return;
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') return;
 
     try {
       // Try to play the custom notification sound first

@@ -6,6 +6,7 @@ import { usePomodoroTimer } from "@/hooks/use-pomodoro-timer";
 import { useAudioManager } from "@/hooks/use-audio-manager";
 import { useNotifications } from "@/hooks/use-notifications";
 import { useTheme } from "@/components/theme-provider";
+import { queryClient } from "@/lib/queryClient";
 import { TimerDisplay } from "@/components/timer-display";
 import { TimerControls } from "@/components/timer-controls";
 import { AudioControls } from "@/components/audio-controls";
@@ -178,8 +179,14 @@ export default function PomodoroPage() {
   };
 
   const handleRefreshApp = () => {
-    // Clear localStorage and reload the page
+    // Clear all app data and cache for testing
     localStorage.clear();
+    sessionStorage.clear();
+    
+    // Clear query cache
+    queryClient.clear();
+    
+    // Force reload with cache clearing
     window.location.reload();
   };
 

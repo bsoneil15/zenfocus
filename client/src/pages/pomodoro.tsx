@@ -177,8 +177,27 @@ export default function PomodoroPage() {
     setTheme(theme === "dark" ? "light" : "dark");
   };
 
+  const handleRefreshApp = () => {
+    // Clear localStorage and reload the page
+    localStorage.clear();
+    window.location.reload();
+  };
+
   return (
-    <div className="min-h-screen flex flex-col overflow-hidden">
+    <div className="min-h-screen flex flex-col overflow-hidden relative">
+      {/* Refresh Button - Very Faint in Bottom Right */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="fixed bottom-4 right-4 w-8 h-8 opacity-10 hover:opacity-30 transition-opacity duration-300 text-muted-foreground/30"
+        onClick={handleRefreshApp}
+        data-testid="button-refresh"
+      >
+        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </Button>
+
       {/* Header */}
       <header className="flex items-center justify-between p-4 sm:p-6 bg-card/50 backdrop-blur-sm border-b border-border">
         <div className="flex items-center gap-3">

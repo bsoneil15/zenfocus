@@ -204,14 +204,13 @@ export default function PomodoroPage() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
       </Button>
-
       {/* Header */}
       <header className="flex items-center justify-between p-4 sm:p-6 bg-card/50 backdrop-blur-sm border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <Headphones className="h-4 w-4 text-primary-foreground" />
           </div>
-          <h1 className="text-lg font-semibold text-foreground">Focus Flow</h1>
+          <h1 className="text-lg font-semibold text-foreground">Zen Focus Timer</h1>
         </div>
         
         <div className="flex items-center gap-2">
@@ -240,7 +239,6 @@ export default function PomodoroPage() {
           </Button>
         </div>
       </header>
-
       {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 relative">
         <TimerDisplay
@@ -277,12 +275,10 @@ export default function PomodoroPage() {
           breaksToday={todayStats.breaks}
         />
       </main>
-
       {/* Footer */}
       <footer className="text-center py-4 text-sm text-muted-foreground border-t border-border">
         🎧⏳ Built by Brendan O'Neil with Replit, elevenlabs and OpenAI
       </footer>
-
       {/* Panels */}
       <SettingsPanel
         isOpen={isSettingsOpen}
@@ -292,13 +288,11 @@ export default function PomodoroPage() {
         onUpdateSettings={updateSettings}
         onRequestNotifications={requestPermission}
       />
-
       <AIGeneratorPanel
         isOpen={isAIGeneratorOpen}
         onClose={() => setIsAIGeneratorOpen(false)}
         onSoundscapeGenerated={handleSoundscapeGenerated}
       />
-
       <SoundscapePacksPanel
         isOpen={isSoundscapePacksOpen}
         onClose={() => setIsSoundscapePacksOpen(false)}

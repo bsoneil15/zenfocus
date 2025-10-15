@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { isIP } from "net";
 
 interface RateLimitEntry {
   count: number;
@@ -37,10 +38,46 @@ class RateLimiter {
   }
 
   private getClientKey(req: Request): string {
-    // Use IP address as the key for rate limiting
+    // Try multiple headers in order of reliability
+    // X-Real-IP is typically set by reverse proxies and is harder to spoof
+    const realIp = req.headers['x-real-ip'];
+    if (realIp && typeof realIp === 'string') {
+      const trimmedIp = realIp.trim();
+      // Validate IP format to prevent spoofing attempts
+      if (this.isValidIp(trimmedIp)) {
+        return trimmedIp;
+      }
+    }
+    
+    // X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2, ...)
+    // Use the first IP which should be the original client
     const forwarded = req.headers['x-forwarded-for'];
-    const ip = forwarded ? (Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0]) : req.socket.remoteAddress;
-    return ip || 'unknown';
+    if (forwarded) {
+      const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
+      const trimmedIp = ip.trim();
+      
+      // Basic IP validation to prevent obvious spoofing attempts
+      if (this.isValidIp(trimmedIp)) {
+        return trimmedIp;
+      }
+    }
+    
+    // Fallback to socket remote address (most reliable but may be proxy IP)
+    const socketIp = req.socket.remoteAddress;
+    if (socketIp) {
+      return socketIp.trim();
+    }
+    
+    // Last resort fallback
+    return 'unknown';
+  }
+  
+  private isValidIp(ip: string): boolean {
+    // Use Node's built-in IP validation which properly handles:
+    // - IPv4 with octet range validation (0-255)
+    // - IPv6 in all forms (standard, compressed, hybrid)
+    // Returns 4 for IPv4, 6 for IPv6, or 0 for invalid
+    return isIP(ip) !== 0;
   }
 
   public middleware() {

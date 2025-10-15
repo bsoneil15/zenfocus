@@ -87,7 +87,22 @@ export function useAudioManager() {
       // Ensure audio context is running
       if (audioContextRef.current.state === "suspended") {
         console.log('Resuming suspended audio context');
-        await audioContextRef.current.resume();
+        try {
+          await audioContextRef.current.resume();
+          console.log('Audio context resumed successfully');
+        } catch (resumeError) {
+          console.error('Failed to resume audio context:', resumeError);
+          setIsPlaying(false);
+          throw new Error(`Cannot play audio - audio context resume failed: ${resumeError instanceof Error ? resumeError.message : 'Unknown error'}`);
+        }
+      }
+      
+      // Verify audio context is in running state before playback
+      if (audioContextRef.current.state !== "running") {
+        const error = `Audio context is not running. Current state: ${audioContextRef.current.state}`;
+        console.error(error);
+        setIsPlaying(false);
+        throw new Error(error);
       }
 
       const source = audioContextRef.current.createBufferSource();

@@ -32,8 +32,12 @@ export async function createAudioBuffer(
       }
       
       const contentType = response.headers.get('content-type');
-      if (!contentType || (!contentType.includes('audio') && !contentType.includes('application/octet-stream'))) {
-        console.warn(`Unexpected content type: ${contentType}, but proceeding anyway`);
+      const validContentTypes = ['audio/', 'application/octet-stream'];
+      const isValidContentType = contentType && validContentTypes.some(type => contentType.includes(type));
+      
+      if (!isValidContentType) {
+        console.error(`Invalid content type for audio: ${contentType}`);
+        throw new Error(`Expected audio file but received: ${contentType || 'unknown content type'}`);
       }
       
       arrayBuffer = await response.arrayBuffer();

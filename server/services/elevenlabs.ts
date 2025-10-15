@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export interface SoundGenerationRequest {
   prompt: string;
   duration: number;
@@ -10,6 +12,13 @@ export interface SoundGenerationResponse {
   duration: number;
 }
 
+const soundGenerationRequestSchema = z.object({
+  prompt: z.string().min(1, "Prompt cannot be empty").max(500, "Prompt too long"),
+  duration: z.number().min(1, "Duration must be at least 1 second").max(22, "Duration cannot exceed 22 seconds"),
+  looping: z.boolean().optional(),
+  promptInfluence: z.number().min(0, "Prompt influence must be between 0 and 1").max(1, "Prompt influence must be between 0 and 1").optional(),
+});
+
 export async function generateSound(request: SoundGenerationRequest): Promise<SoundGenerationResponse> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   
@@ -17,7 +26,9 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
     throw new Error("ElevenLabs API key not found. Please set ELEVENLABS_API_KEY environment variable.");
   }
 
-  console.log("Generating sound with ElevenLabs:", { prompt: request.prompt, duration: request.duration });
+  const validatedRequest = soundGenerationRequestSchema.parse(request);
+
+  console.log("Generating sound with ElevenLabs:", { prompt: validatedRequest.prompt, duration: validatedRequest.duration });
 
   try {
     const response = await fetch("https://api.elevenlabs.io/v1/sound-generation", {
@@ -27,10 +38,10 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
         "xi-api-key": apiKey,
       },
       body: JSON.stringify({
-        text: request.prompt,
-        duration_seconds: Math.min(request.duration, 22),
-        prompt_influence: request.promptInfluence || 0.7,
-        looping: request.looping || false,
+        text: validatedRequest.prompt,
+        duration_seconds: validatedRequest.duration,
+        prompt_influence: validatedRequest.promptInfluence || 0.7,
+        looping: validatedRequest.looping || false,
       }),
     });
 
@@ -54,14 +65,28 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
       if (jsonResponse.audio_url) {
         return {
           audioUrl: jsonResponse.audio_url,
-          duration: request.duration,
+          duration: validatedRequest.duration,
         };
       } else {
         throw new Error("Unexpected JSON response from ElevenLabs API");
       }
     } else {
+      // Validate that the response is actually audio data
+      const validAudioTypes = ['audio/', 'application/octet-stream'];
+      const isValidAudio = validAudioTypes.some(type => contentType?.includes(type));
+      
+      if (!isValidAudio) {
+        console.error("Invalid content type received from ElevenLabs:", contentType);
+        throw new Error(`Expected audio data but received: ${contentType || 'unknown content type'}`);
+      }
+      
       // If audio data, save to file system and return local URL
       const audioBuffer = await response.arrayBuffer();
+      
+      // Verify the buffer is not empty
+      if (audioBuffer.byteLength === 0) {
+        throw new Error("Received empty audio buffer from ElevenLabs API");
+      }
       
       // Create a filename based on timestamp and prompt
       const filename = `soundscape_${Date.now()}.mp3`;
@@ -70,11 +95,18 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
       
       // Save to the attached_assets directory (where audio files are served from)
       const audioPath = path.join(process.cwd(), 'attached_assets', filename);
-      await fs.writeFile(audioPath, Buffer.from(audioBuffer));
+      
+      try {
+        await fs.writeFile(audioPath, Buffer.from(audioBuffer));
+        console.log(`Successfully saved audio file: ${filename} (${audioBuffer.byteLength} bytes)`);
+      } catch (writeError) {
+        console.error("Failed to write audio file:", writeError);
+        throw new Error(`Failed to save audio file: ${writeError instanceof Error ? writeError.message : 'Unknown error'}`);
+      }
       
       return {
         audioUrl: `/api/audio/${filename}`,
-        duration: request.duration,
+        duration: validatedRequest.duration,
       };
     }
   } catch (error) {

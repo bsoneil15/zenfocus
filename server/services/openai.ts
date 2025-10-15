@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { z } from "zod";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
@@ -10,6 +11,16 @@ export interface FocusPromptSuggestion {
   text: string;
   category: string;
 }
+
+const suggestionSchema = z.object({
+  id: z.string(),
+  text: z.string().min(1, "Suggestion text cannot be empty"),
+  category: z.string().min(1, "Category cannot be empty"),
+});
+
+const suggestionsResponseSchema = z.object({
+  suggestions: z.array(suggestionSchema),
+});
 
 export async function generateFocusPrompts(): Promise<FocusPromptSuggestion[]> {
   try {
@@ -44,11 +55,35 @@ export async function generateFocusPrompts(): Promise<FocusPromptSuggestion[]> {
       throw new Error("Invalid response format from OpenAI");
     }
 
-    return result.suggestions.map((suggestion: any, index: number) => ({
-      id: suggestion.id || (index + 1).toString(),
-      text: suggestion.text || "Gentle ambient soundscape for focus",
-      category: suggestion.category || "ambient",
-    }));
+    // Validate the response structure
+    try {
+      const validatedResponse = suggestionsResponseSchema.parse(result);
+      return validatedResponse.suggestions;
+    } catch (validationError) {
+      console.error("OpenAI response validation failed:", validationError);
+      
+      // Try to salvage partial data with defaults
+      const salvaged = result.suggestions
+        .map((suggestion: any, index: number) => {
+          try {
+            return suggestionSchema.parse({
+              id: suggestion.id || (index + 1).toString(),
+              text: suggestion.text || "Gentle ambient soundscape for focus",
+              category: suggestion.category || "ambient",
+            });
+          } catch {
+            return null;
+          }
+        })
+        .filter((s: any) => s !== null);
+      
+      if (salvaged.length > 0) {
+        console.log(`Salvaged ${salvaged.length} valid suggestions from malformed response`);
+        return salvaged as FocusPromptSuggestion[];
+      }
+      
+      throw new Error("Could not validate any suggestions from OpenAI response");
+    }
   } catch (error) {
     console.error("Failed to generate focus prompts:", error);
     

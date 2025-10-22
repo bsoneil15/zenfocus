@@ -62,8 +62,12 @@ export function useAudioManager() {
 
   const stopCurrentAudio = useCallback(() => {
     if (audioSourceRef.current) {
-      audioSourceRef.current.stop();
-      audioSourceRef.current.disconnect();
+      try {
+        audioSourceRef.current.stop();
+        audioSourceRef.current.disconnect();
+      } catch (error) {
+        console.error("Error stopping audio source:", error);
+      }
       audioSourceRef.current = null;
     }
     setIsPlaying(false);
@@ -219,22 +223,25 @@ export function useAudioManager() {
   const addCustomSoundscape = useCallback((soundscape: CustomSoundscape) => {
     setCustomSoundscapes(prev => {
       const updated = [...prev, soundscape];
-      // Store in localStorage
-      localStorage.setItem("custom-soundscapes", JSON.stringify(updated));
+      try {
+        localStorage.setItem("custom-soundscapes", JSON.stringify(updated));
+      } catch (error) {
+        console.error("Failed to save custom soundscapes to localStorage:", error);
+      }
       return updated;
     });
   }, []);
 
   // Load custom soundscapes from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem("custom-soundscapes");
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem("custom-soundscapes");
+      if (saved) {
         const parsed = JSON.parse(saved);
         setCustomSoundscapes(parsed);
-      } catch (error) {
-        console.error("Failed to load custom soundscapes:", error);
       }
+    } catch (error) {
+      console.error("Failed to load custom soundscapes from localStorage:", error);
     }
   }, []);
 

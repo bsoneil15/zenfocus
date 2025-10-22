@@ -134,17 +134,25 @@ export default function PomodoroPage() {
 
   // Load today's stats from localStorage
   useEffect(() => {
-    const today = new Date().toDateString();
-    const savedStats = localStorage.getItem(`pomodoro-stats-${today}`);
-    if (savedStats) {
-      setTodayStats(JSON.parse(savedStats));
+    try {
+      const today = new Date().toDateString();
+      const savedStats = localStorage.getItem(`pomodoro-stats-${today}`);
+      if (savedStats) {
+        setTodayStats(JSON.parse(savedStats));
+      }
+    } catch (error) {
+      console.error("Failed to load stats from localStorage:", error);
     }
   }, []);
 
   // Save stats to localStorage
   useEffect(() => {
-    const today = new Date().toDateString();
-    localStorage.setItem(`pomodoro-stats-${today}`, JSON.stringify(todayStats));
+    try {
+      const today = new Date().toDateString();
+      localStorage.setItem(`pomodoro-stats-${today}`, JSON.stringify(todayStats));
+    } catch (error) {
+      console.error("Failed to save stats to localStorage:", error);
+    }
   }, [todayStats]);
 
   // Update browser tab title with remaining time

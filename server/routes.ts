@@ -296,9 +296,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Send file with error handling
       res.sendFile(filePath, (err) => {
-        if (err && !res.headersSent) {
+        if (err) {
           console.error('Error serving audio file:', err);
-          res.status(500).json({ message: 'Error serving audio file', error: err.message });
+          if (!res.headersSent) {
+            res.status((err as any).status || 500).end();
+          }
         }
       });
     } catch (error) {

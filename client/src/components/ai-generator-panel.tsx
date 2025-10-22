@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,8 +32,8 @@ export function AIGeneratorPanel({
   const remainingGenerations = getRemainingGenerations();
   const canGenerate = canGenerateToday();
 
-  const loadSuggestions = async () => {
-    if (suggestions.length > 0) return; // Already loaded
+  const loadSuggestions = useCallback(async () => {
+    if (suggestions.length > 0) return;
     
     setIsLoadingSuggestions(true);
     try {
@@ -42,7 +42,6 @@ export function AIGeneratorPanel({
       setSuggestions(data.suggestions);
     } catch (error) {
       console.error("Failed to load suggestions:", error);
-      // Fallback suggestions
       setSuggestions([
         { id: "1", text: "Gentle forest ambience with distant birds and rustling leaves" },
         { id: "2", text: "Soft ocean waves with subtle wind through beach grass" },
@@ -51,7 +50,7 @@ export function AIGeneratorPanel({
     } finally {
       setIsLoadingSuggestions(false);
     }
-  };
+  }, [suggestions.length]);
 
   const selectPrompt = (suggestion: PromptSuggestion) => {
     setCustomPrompt(suggestion.text);
@@ -153,9 +152,11 @@ export function AIGeneratorPanel({
   };
 
   // Load suggestions when panel opens
-  if (isOpen && suggestions.length === 0 && !isLoadingSuggestions) {
-    loadSuggestions();
-  }
+  useEffect(() => {
+    if (isOpen && suggestions.length === 0 && !isLoadingSuggestions) {
+      loadSuggestions();
+    }
+  }, [isOpen, suggestions.length, isLoadingSuggestions, loadSuggestions]);
 
   if (!isOpen) return null;
 

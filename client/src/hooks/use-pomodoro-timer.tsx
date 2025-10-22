@@ -27,8 +27,13 @@ const DEFAULT_SETTINGS: PomodoroSettings = {
 
 export function usePomodoroTimer() {
   const [settings, setSettings] = useState<PomodoroSettings>(() => {
-    const saved = localStorage.getItem("pomodoro-settings");
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    try {
+      const saved = localStorage.getItem("pomodoro-settings");
+      return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    } catch (error) {
+      console.error("Failed to load settings from localStorage:", error);
+      return DEFAULT_SETTINGS;
+    }
   });
 
   const [state, setState] = useState<PomodoroState>(() => ({
@@ -45,7 +50,11 @@ export function usePomodoroTimer() {
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem("pomodoro-settings", JSON.stringify(settings));
+    try {
+      localStorage.setItem("pomodoro-settings", JSON.stringify(settings));
+    } catch (error) {
+      console.error("Failed to save settings to localStorage:", error);
+    }
   }, [settings]);
 
   const updateSettings = useCallback((newSettings: Partial<PomodoroSettings>) => {
@@ -53,15 +62,15 @@ export function usePomodoroTimer() {
   }, []);
 
   const start = useCallback(() => {
-    if (state.currentTime <= 0) return;
-    
-    setState(prev => ({ ...prev, isRunning: true, isComplete: false }));
+    setState(prev => {
+      if (prev.currentTime <= 0) return prev;
+      return { ...prev, isRunning: true, isComplete: false };
+    });
     
     if (intervalRef.current) clearInterval(intervalRef.current);
     
     intervalRef.current = setInterval(() => {
       setState(prev => {
-        // Double-check we're still running to prevent race conditions
         if (!prev.isRunning) {
           return prev;
         }
@@ -69,7 +78,6 @@ export function usePomodoroTimer() {
         const newTime = prev.currentTime - 1;
         
         if (newTime <= 0) {
-          // Timer completed - clear the interval here too
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
@@ -89,7 +97,7 @@ export function usePomodoroTimer() {
         };
       });
     }, 1000);
-  }, [state.currentTime]);
+  }, []);
 
   const pause = useCallback(() => {
     setState(prev => ({ ...prev, isRunning: false }));
@@ -114,32 +122,36 @@ export function usePomodoroTimer() {
   }, [settings.focusDuration, settings.breakDuration]);
 
   const switchMode = useCallback(() => {
-    const newMode = state.mode === "focus" ? "break" : "focus";
-    const newDuration = newMode === "focus" ? settings.focusDuration : settings.breakDuration;
-    const newSessionCount = newMode === "focus" ? state.sessionCount : state.sessionCount + 1;
-    
-    setState(prev => ({
-      ...prev,
-      mode: newMode,
-      currentTime: newDuration * 60,
-      totalTime: newDuration * 60,
-      isRunning: settings.autoStartBreaks && newMode === "break",
-      sessionCount: newSessionCount,
-      isComplete: false,
-    }));
-
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
 
-    // Auto-start break if enabled
-    if (settings.autoStartBreaks && newMode === "break") {
-      setTimeout(() => {
-        start();
-      }, 100);
-    }
-  }, [state.mode, state.sessionCount, settings, start]);
+    setState(prev => {
+      const newMode = prev.mode === "focus" ? "break" : "focus";
+      const newDuration = newMode === "focus" ? settings.focusDuration : settings.breakDuration;
+      const newSessionCount = newMode === "focus" ? prev.sessionCount : prev.sessionCount + 1;
+      
+      return {
+        ...prev,
+        mode: newMode,
+        currentTime: newDuration * 60,
+        totalTime: newDuration * 60,
+        isRunning: false,
+        sessionCount: newSessionCount,
+        isComplete: false,
+      };
+    });
+
+    setTimeout(() => {
+      setState(prev => {
+        if (settings.autoStartBreaks && prev.mode === "break") {
+          start();
+        }
+        return prev;
+      });
+    }, 100);
+  }, [settings, start]);
 
   const skip = useCallback(() => {
     setState(prev => ({ ...prev, isComplete: true, isRunning: false }));

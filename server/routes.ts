@@ -1,73 +1,16 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import path from "path";
 import fs from "fs";
-import passport from "passport";
 import { storage } from "./storage";
-import { insertUserSchema, insertSoundscapeSchema } from "@shared/schema";
-import { hashPassword } from "./auth";
+import { insertSoundscapeSchema } from "@shared/schema";
+import { isAuthenticated } from "./replit_integrations/auth";
 import { generateFocusPrompts, generateSoundscapeName } from "./services/openai";
 import { generateSound } from "./services/elevenlabs";
 import { soundscapeRateLimiter, suggestionsRateLimiter } from "./middleware/rate-limiter";
 
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (req.isAuthenticated()) return next();
-  res.status(401).json({ message: "Not authenticated" });
-}
-
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth routes
-  app.post("/api/register", async (req, res) => {
-    try {
-      const data = insertUserSchema.parse(req.body);
-      const existing = await storage.getUserByUsername(data.username);
-      if (existing) {
-        return res.status(400).json({ message: "Username already taken" });
-      }
-      const user = await storage.createUser({
-        username: data.username,
-        password: await hashPassword(data.password),
-      });
-      req.login(user, (err) => {
-        if (err) return res.status(500).json({ message: "Login failed after registration" });
-        const { password: _, ...safeUser } = user;
-        res.status(201).json(safeUser);
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid data", errors: error.errors });
-      }
-      res.status(500).json({ message: "Registration failed" });
-    }
-  });
-
-  app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err: any, user: any, info: any) => {
-      if (err) return next(err);
-      if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      req.login(user, (loginErr) => {
-        if (loginErr) return next(loginErr);
-        const { password: _, ...safeUser } = user;
-        res.json(safeUser);
-      });
-    })(req, res, next);
-  });
-
-  app.post("/api/logout", (req, res) => {
-    req.logout((err) => {
-      if (err) return res.status(500).json({ message: "Logout failed" });
-      res.json({ message: "Logged out" });
-    });
-  });
-
-  app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-    const user = req.user as any;
-    const { password: _, ...safeUser } = user;
-    res.json(safeUser);
-  });
-
   // Rate limit status endpoint
   app.get("/api/rate-limit/status", (req, res) => {
     const soundscapeStatus = soundscapeRateLimiter.getStatus(req);
@@ -129,7 +72,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = generateRequestSchema.parse(req.body);
 
-      // Generate the sound using ElevenLabs
       const soundResult = await generateSound({
         prompt: validatedData.prompt,
         duration: validatedData.duration,
@@ -137,7 +79,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         promptInfluence: validatedData.promptInfluence,
       });
 
-      // Generate a name for the soundscape using OpenAI
       console.log("About to call generateSoundscapeName with prompt:", validatedData.prompt);
       let name;
       try {
@@ -148,7 +89,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name = "🎵 Custom Soundscape";
       }
 
-      // Store the soundscape in our storage
       const soundscape = await storage.createSoundscape({
         name,
         prompt: validatedData.prompt,
@@ -256,7 +196,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = signupSchema.parse(req.body);
       
-      // Check if already subscribed
       const existing = await storage.getNewsletterSubscriber(validatedData.email);
       if (existing) {
         res.status(200).json({ 
@@ -266,13 +205,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Create new subscriber
       const subscriber = await storage.createNewsletterSubscriber({
         email: validatedData.email,
         subscribed: true,
       });
 
-      // Unlock all newsletter soundscape packs
       const packs = await storage.getSoundscapePacks();
       const newsletterPacks = packs.filter(pack => pack.unlockedBy === "newsletter");
       
@@ -328,31 +265,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resolvedPath: filePath
       });
       
-      // Security check - ensure file is in attached_assets directory
       const assetsPath = path.resolve(import.meta.dirname, '..', 'attached_assets');
       if (!filePath.startsWith(assetsPath)) {
         console.error('Security violation: attempted to access file outside assets:', filename);
         return res.status(403).json({ message: 'Access denied' });
       }
       
-      // Check if file exists first
       if (!fs.existsSync(filePath)) {
         console.error('Audio file not found:', filename, 'at path:', filePath);
         return res.status(404).json({ message: 'Audio file not found', filename });
       }
       
-      // Set proper headers for audio files
       res.set({
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET',
         'Access-Control-Allow-Headers': 'Content-Type, Cache-Control, Pragma, Expires',
         'Content-Type': 'audio/mpeg',
         'Accept-Ranges': 'bytes',
-        'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+        'Cache-Control': 'public, max-age=31536000',
         'Access-Control-Max-Age': '3600'
       });
       
-      // Send file with error handling
       res.sendFile(filePath, (err) => {
         if (err) {
           console.error('Error serving audio file:', err);

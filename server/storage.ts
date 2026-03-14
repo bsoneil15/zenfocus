@@ -1,13 +1,9 @@
-import { type User, type InsertUser, type Soundscape, type InsertSoundscape, type PomodoroSession, type InsertPomodoroSession, type NewsletterSubscriber, type InsertNewsletterSubscriber, type SoundscapePack, type InsertSoundscapePack, users, soundscapes, pomodoroSessions, newsletterSubscribers, soundscapePacks } from "@shared/schema";
+import { type Soundscape, type InsertSoundscape, type PomodoroSession, type InsertPomodoroSession, type NewsletterSubscriber, type InsertNewsletterSubscriber, type SoundscapePack, type InsertSoundscapePack, soundscapes, pomodoroSessions, newsletterSubscribers, soundscapePacks } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  
   getSoundscape(id: string): Promise<Soundscape | undefined>;
   getSoundscapes(): Promise<Soundscape[]>;
   createSoundscape(soundscape: InsertSoundscape): Promise<Soundscape>;
@@ -26,25 +22,21 @@ export interface IStorage {
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
   private soundscapes: Map<string, Soundscape>;
   private pomodoroSessions: Map<string, PomodoroSession>;
   private newsletterSubscribers: Map<string, NewsletterSubscriber>;
   private soundscapePacks: Map<string, SoundscapePack>;
 
   constructor() {
-    this.users = new Map();
     this.soundscapes = new Map();
     this.pomodoroSessions = new Map();
     this.newsletterSubscribers = new Map();
     this.soundscapePacks = new Map();
     
-    // Initialize with some default soundscape packs
     this.initializeDefaultPacks();
   }
 
   private initializeDefaultPacks() {
-    // Create the individual soundscapes for Pack 1
     const cityPark: Soundscape = {
       id: "city-park",
       name: "City park",
@@ -75,7 +67,6 @@ export class MemStorage implements IStorage {
       createdAt: new Date()
     };
     
-    // Store the soundscapes
     this.soundscapes.set(cityPark.id, cityPark);
     this.soundscapes.set(distantThunder.id, distantThunder);
     this.soundscapes.set(jazzBar.id, jazzBar);
@@ -84,7 +75,7 @@ export class MemStorage implements IStorage {
       id: "pack-1",
       name: "Pack 1",
       description: "Premium soundscape collection featuring city park, distant thunder, and jazz bar ambience",
-      isUnlocked: false, // Start locked, unlock after email submission
+      isUnlocked: false,
       unlockedBy: "newsletter",
       soundscapeIds: ["city-park", "distant-thunder", "jazz-bar"],
       createdAt: new Date()
@@ -102,23 +93,6 @@ export class MemStorage implements IStorage {
     
     this.soundscapePacks.set(pack1.id, pack1);
     this.soundscapePacks.set(pack2.id, pack2);
-  }
-
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
   }
 
   async getSoundscape(id: string): Promise<Soundscape | undefined> {
@@ -217,10 +191,6 @@ export class MemStorage implements IStorage {
 export class DatabaseStorage implements IStorage {
   private initialized = false;
 
-  constructor() {
-    // Don't initialize during construction to avoid startup issues
-  }
-
   private async ensureInitialized() {
     if (this.initialized) return;
     
@@ -235,48 +205,36 @@ export class DatabaseStorage implements IStorage {
 
   private async initializeDefaultData() {
     try {
-      // Check if we already have packs
       const existingPacks = await db.select().from(soundscapePacks);
       if (existingPacks.length > 0) return;
 
-      // Create the individual soundscapes for Pack 1
-      const [cityPark] = await db
-        .insert(soundscapes)
-        .values({
-          id: "city-park",
-          name: "City park",
-          prompt: "Peaceful city park with birds chirping and gentle breeze",
-          audioUrl: "@assets/City_Park_in_Spring.-#2-1757109841851_1757110354748.mp3",
-          duration: 30,
-          isPublic: true,
-        })
-        .returning();
+      await db.insert(soundscapes).values({
+        id: "city-park",
+        name: "City park",
+        prompt: "Peaceful city park with birds chirping and gentle breeze",
+        audioUrl: "@assets/City_Park_in_Spring.-#2-1757109841851_1757110354748.mp3",
+        duration: 30,
+        isPublic: true,
+      }).onConflictDoNothing();
 
-      const [distantThunder] = await db
-        .insert(soundscapes)
-        .values({
-          id: "distant-thunder",
-          name: "Distant thunder",
-          prompt: "Distant thunderstorm with gentle rain and rolling thunder",
-          audioUrl: "@assets/Distant_Thunderstorm-#1-1757110020986_1757110354747.mp3",
-          duration: 30,
-          isPublic: true,
-        })
-        .returning();
+      await db.insert(soundscapes).values({
+        id: "distant-thunder",
+        name: "Distant thunder",
+        prompt: "Distant thunderstorm with gentle rain and rolling thunder",
+        audioUrl: "@assets/Distant_Thunderstorm-#1-1757110020986_1757110354747.mp3",
+        duration: 30,
+        isPublic: true,
+      }).onConflictDoNothing();
 
-      const [jazzBar] = await db
-        .insert(soundscapes)
-        .values({
-          id: "jazz-bar",
-          name: "Jazz bar",
-          prompt: "Cozy jazz bar atmosphere with smooth background music",
-          audioUrl: "@assets/Old_school_Jazz_Bar_-#2-1757110326316_1757110354746.mp3",
-          duration: 30,
-          isPublic: true,
-        })
-        .returning();
+      await db.insert(soundscapes).values({
+        id: "jazz-bar",
+        name: "Jazz bar",
+        prompt: "Cozy jazz bar atmosphere with smooth background music",
+        audioUrl: "@assets/Old_school_Jazz_Bar_-#2-1757110326316_1757110354746.mp3",
+        duration: 30,
+        isPublic: true,
+      }).onConflictDoNothing();
 
-      // Create Pack 1
       await db.insert(soundscapePacks).values({
         id: "pack-1",
         name: "Pack 1",
@@ -284,9 +242,8 @@ export class DatabaseStorage implements IStorage {
         isUnlocked: false,
         unlockedBy: "newsletter",
         soundscapeIds: ["city-park", "distant-thunder", "jazz-bar"],
-      });
+      }).onConflictDoNothing();
 
-      // Create Pack 2
       await db.insert(soundscapePacks).values({
         id: "pack-2",
         name: "Pack 2",
@@ -294,33 +251,12 @@ export class DatabaseStorage implements IStorage {
         isUnlocked: false,
         unlockedBy: "coming-soon",
         soundscapeIds: [],
-      });
+      }).onConflictDoNothing();
       
       console.log("✓ Default soundscapes and packs initialized");
     } catch (error) {
       console.error("Failed to initialize default data:", error);
     }
-  }
-
-  async getUser(id: string): Promise<User | undefined> {
-    await this.ensureInitialized();
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    await this.ensureInitialized();
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    await this.ensureInitialized();
-    const [user] = await db
-      .insert(users)
-      .values(insertUser)
-      .returning();
-    return user;
   }
 
   async getSoundscape(id: string): Promise<Soundscape | undefined> {

@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import PomodoroPage from "@/pages/pomodoro";
-import UsersPage from "@/pages/users";
 import NotFound from "@/pages/not-found";
 
 function LandingPage() {
@@ -42,9 +41,6 @@ function Router() {
     <Switch>
       <Route path="/">
         {user ? <PomodoroPage /> : <LandingPage />}
-      </Route>
-      <Route path="/users">
-        {user ? <UsersPage /> : <LandingPage />}
       </Route>
       <Route component={NotFound} />
     </Switch>

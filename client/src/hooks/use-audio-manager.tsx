@@ -276,6 +276,16 @@ export function useAudioManager() {
       const data = await response.json();
       console.log('Soundscapes data loaded:', data);
       
+      // Build a reverse map: soundscapeId -> packId
+      const soundscapeToPackId: Record<string, string> = {};
+      packsData.packs.forEach((pack: any) => {
+        if (Array.isArray(pack.soundscapeIds)) {
+          pack.soundscapeIds.forEach((sid: string) => {
+            soundscapeToPackId[sid] = pack.id;
+          });
+        }
+      });
+
       const packSounds: PackSoundscape[] = data.soundscapes
         .filter((s: any) => s.isPublic)
         .map((s: any) => ({
@@ -283,7 +293,7 @@ export function useAudioManager() {
           name: s.name,
           audioUrl: s.audioUrl,
           prompt: s.prompt,
-          packId: 'pack-1' // For now, assume they're all in pack-1
+          packId: soundscapeToPackId[s.id] || 'pack-1'
         }));
       
       console.log('Processed pack soundscapes:', packSounds);

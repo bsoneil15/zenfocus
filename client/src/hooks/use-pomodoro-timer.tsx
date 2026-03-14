@@ -47,6 +47,7 @@ export function usePomodoroTimer() {
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const onCompleteRef = useRef<(() => void) | null>(null);
+  const prevModeRef = useRef<TimerMode>("focus");
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
@@ -143,15 +144,7 @@ export function usePomodoroTimer() {
       };
     });
 
-    setTimeout(() => {
-      setState(prev => {
-        if (settings.autoStartBreaks && prev.mode === "break") {
-          start();
-        }
-        return prev;
-      });
-    }, 100);
-  }, [settings, start]);
+  }, [settings]);
 
   const skip = useCallback(() => {
     setState(prev => ({ ...prev, isComplete: true, isRunning: false }));
@@ -160,6 +153,16 @@ export function usePomodoroTimer() {
       intervalRef.current = null;
     }
   }, []);
+
+  // Auto-start break timer when mode switches to break (if autoStartBreaks is enabled)
+  useEffect(() => {
+    if (state.mode !== prevModeRef.current) {
+      prevModeRef.current = state.mode;
+      if (settings.autoStartBreaks && state.mode === "break" && !state.isRunning) {
+        start();
+      }
+    }
+  }, [state.mode, settings.autoStartBreaks, state.isRunning, start]);
 
   // Handle timer completion
   useEffect(() => {

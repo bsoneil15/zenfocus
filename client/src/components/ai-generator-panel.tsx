@@ -33,8 +33,6 @@ export function AIGeneratorPanel({
   const canGenerate = canGenerateToday();
 
   const loadSuggestions = useCallback(async () => {
-    if (suggestions.length > 0) return;
-    
     setIsLoadingSuggestions(true);
     try {
       const response = await apiRequest("GET", "/api/soundscapes/suggestions");
@@ -50,7 +48,7 @@ export function AIGeneratorPanel({
     } finally {
       setIsLoadingSuggestions(false);
     }
-  }, [suggestions.length]);
+  }, []);
 
   const selectPrompt = (suggestion: PromptSuggestion) => {
     setCustomPrompt(suggestion.text);
@@ -151,12 +149,12 @@ export function AIGeneratorPanel({
     }
   };
 
-  // Load suggestions when panel opens
+  // Load suggestions whenever the panel opens
   useEffect(() => {
-    if (isOpen && suggestions.length === 0 && !isLoadingSuggestions) {
+    if (isOpen) {
       loadSuggestions();
     }
-  }, [isOpen, suggestions.length, isLoadingSuggestions, loadSuggestions]);
+  }, [isOpen, loadSuggestions]);
 
   if (!isOpen) return null;
 

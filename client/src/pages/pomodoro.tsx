@@ -192,7 +192,7 @@ export default function PomodoroPage() {
     sessionStorage.clear();
     
     // Clear query cache
-    queryClient.clear();
+    queryClient.resetQueries();
     
     // Force reload with cache clearing
     window.location.reload();

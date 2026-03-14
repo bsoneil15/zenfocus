@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Headphones, Settings, Moon, Sun } from "lucide-react";
+import { Headphones, Settings, Moon, Sun, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePomodoroTimer } from "@/hooks/use-pomodoro-timer";
@@ -14,6 +14,7 @@ import { SessionStats } from "@/components/session-stats";
 import { SettingsPanel } from "@/components/settings-panel";
 import { AIGeneratorPanel } from "@/components/ai-generator-panel";
 import { SoundscapePacksPanel } from "@/components/soundscape-packs-panel";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function PomodoroPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -27,6 +28,7 @@ export default function PomodoroPage() {
 
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const { user, logout } = useAuth();
   
   const {
     state: timerState,
@@ -244,6 +246,17 @@ export default function PomodoroPage() {
             data-testid="button-settings"
           >
             <Settings className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-10 h-10 rounded-lg"
+            onClick={logout}
+            title={`Sign out (${user?.username})`}
+            data-testid="button-logout"
+          >
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>

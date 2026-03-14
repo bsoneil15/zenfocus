@@ -1,15 +1,73 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import path from "path";
 import fs from "fs";
+import passport from "passport";
 import { storage } from "./storage";
-import { insertSoundscapeSchema } from "@shared/schema";
+import { insertUserSchema, insertSoundscapeSchema } from "@shared/schema";
+import { hashPassword } from "./auth";
 import { generateFocusPrompts, generateSoundscapeName } from "./services/openai";
 import { generateSound } from "./services/elevenlabs";
 import { soundscapeRateLimiter, suggestionsRateLimiter } from "./middleware/rate-limiter";
 
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated()) return next();
+  res.status(401).json({ message: "Not authenticated" });
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth routes
+  app.post("/api/register", async (req, res) => {
+    try {
+      const data = insertUserSchema.parse(req.body);
+      const existing = await storage.getUserByUsername(data.username);
+      if (existing) {
+        return res.status(400).json({ message: "Username already taken" });
+      }
+      const user = await storage.createUser({
+        username: data.username,
+        password: await hashPassword(data.password),
+      });
+      req.login(user, (err) => {
+        if (err) return res.status(500).json({ message: "Login failed after registration" });
+        const { password: _, ...safeUser } = user;
+        res.status(201).json(safeUser);
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      req.login(user, (loginErr) => {
+        if (loginErr) return next(loginErr);
+        const { password: _, ...safeUser } = user;
+        res.json(safeUser);
+      });
+    })(req, res, next);
+  });
+
+  app.post("/api/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) return res.status(500).json({ message: "Logout failed" });
+      res.json({ message: "Logged out" });
+    });
+  });
+
+  app.get("/api/user", (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const user = req.user as any;
+    const { password: _, ...safeUser } = user;
+    res.json(safeUser);
+  });
+
   // Rate limit status endpoint
   app.get("/api/rate-limit/status", (req, res) => {
     const soundscapeStatus = soundscapeRateLimiter.getStatus(req);

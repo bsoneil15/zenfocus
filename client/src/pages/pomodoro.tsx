@@ -253,7 +253,7 @@ export default function PomodoroPage() {
             size="icon"
             className="w-10 h-10 rounded-lg"
             onClick={logout}
-            title={`Sign out (${user?.username})`}
+            title={`Sign out (${user?.firstName || user?.email || 'user'})`}
             data-testid="button-logout"
           >
             <LogOut className="h-4 w-4" />

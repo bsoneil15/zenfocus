@@ -101,6 +101,7 @@ export function AIGeneratorPanel({
         prompt: customPrompt.trim(),
       });
       
+      loadingToast.dismiss();
       const remaining = getRemainingGenerations();
       toast({
         title: "Success",
@@ -120,6 +121,7 @@ export function AIGeneratorPanel({
       });
       
       // Handle rate limiting specifically
+      loadingToast.dismiss();
       if (error.status === 429 || (error.response && error.response.status === 429)) {
         let errorData;
         try {

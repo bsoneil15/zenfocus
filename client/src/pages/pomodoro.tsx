@@ -13,13 +13,11 @@ import { AudioControls } from "@/components/audio-controls";
 import { SessionStats } from "@/components/session-stats";
 import { SettingsPanel } from "@/components/settings-panel";
 import { AIGeneratorPanel } from "@/components/ai-generator-panel";
-import { SoundscapePacksPanel } from "@/components/soundscape-packs-panel";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function PomodoroPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
-  const [isSoundscapePacksOpen, setIsSoundscapePacksOpen] = useState(false);
   const [todayStats, setTodayStats] = useState({
     sessions: 0,
     minutes: 0,
@@ -48,14 +46,13 @@ export default function PomodoroPage() {
     currentSoundscape,
     currentSoundscapeId,
     customSoundscapes,
-    packSoundscapes,
+    bonusSoundscapes,
     volume,
     isPlaying,
     setVolume,
     setSoundscape,
     addCustomSoundscape,
     playNotificationSound,
-    loadPackSoundscapes,
   } = useAudioManager();
 
   const {
@@ -64,17 +61,13 @@ export default function PomodoroPage() {
     showTimerNotification,
   } = useNotifications();
 
-  // Handle timer completion
   useEffect(() => {
     onComplete(() => {
-      // Play notification sound
       playNotificationSound();
       
-      // Handle notifications
       const handleNotifications = async () => {
         if (settings.notifications) {
           if (notificationPermission === "default") {
-            // Request permission with a toast first
             toast({
               title: "Enable Notifications?",
               description: "Get notified when your timer completes. Click to enable.",
@@ -95,7 +88,6 @@ export default function PomodoroPage() {
 
       handleNotifications();
       
-      // Show toast notification
       toast({
         title: timerState.mode === "focus" ? "Great work!" : "Break complete!",
         description: timerState.mode === "focus" 
@@ -103,7 +95,6 @@ export default function PomodoroPage() {
           : "Ready to focus again?",
       });
       
-      // Update stats
       if (timerState.mode === "focus") {
         setTodayStats(prev => ({
           ...prev,
@@ -117,7 +108,6 @@ export default function PomodoroPage() {
         }));
       }
       
-      // Auto-switch mode
       setTimeout(() => {
         switchMode();
       }, 1000);
@@ -134,7 +124,6 @@ export default function PomodoroPage() {
     switchMode,
   ]);
 
-  // Load today's stats from localStorage
   useEffect(() => {
     try {
       const today = new Date().toDateString();
@@ -147,7 +136,6 @@ export default function PomodoroPage() {
     }
   }, []);
 
-  // Save stats to localStorage
   useEffect(() => {
     try {
       const today = new Date().toDateString();
@@ -157,7 +145,6 @@ export default function PomodoroPage() {
     }
   }, [todayStats]);
 
-  // Update browser tab title with remaining time
   useEffect(() => {
     const formattedTime = getFormattedTime();
     const modeText = timerState.mode === "focus" ? "Focus" : "Break";
@@ -189,20 +176,14 @@ export default function PomodoroPage() {
   };
 
   const handleRefreshApp = () => {
-    // Clear all app data and cache for testing
     localStorage.clear();
     sessionStorage.clear();
-    
-    // Clear query cache
     queryClient.resetQueries();
-    
-    // Force reload with cache clearing
     window.location.reload();
   };
 
   return (
     <div className="min-h-screen flex flex-col overflow-hidden relative">
-      {/* Refresh Button - Very Faint in Bottom Right */}
       <Button
         variant="ghost"
         size="icon"
@@ -214,7 +195,6 @@ export default function PomodoroPage() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
       </Button>
-      {/* Header */}
       <header className="flex items-center justify-between p-4 sm:p-6 bg-card/50 backdrop-blur-sm border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -260,7 +240,6 @@ export default function PomodoroPage() {
           </Button>
         </div>
       </header>
-      {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 relative">
         <TimerDisplay
           time={getFormattedTime()}
@@ -281,13 +260,12 @@ export default function PomodoroPage() {
           currentSoundscape={currentSoundscape}
           currentSoundscapeId={currentSoundscapeId}
           customSoundscapes={customSoundscapes}
-          packSoundscapes={packSoundscapes}
+          bonusSoundscapes={bonusSoundscapes}
           volume={volume}
           isPlaying={isPlaying}
           onVolumeChange={setVolume}
           onSoundscapeChange={handleSoundscapeChange}
           onGenerateAI={() => setIsAIGeneratorOpen(true)}
-          onViewPacks={() => setIsSoundscapePacksOpen(true)}
         />
 
         <SessionStats
@@ -296,11 +274,9 @@ export default function PomodoroPage() {
           breaksToday={todayStats.breaks}
         />
       </main>
-      {/* Footer */}
       <footer className="text-center py-4 text-sm text-muted-foreground border-t border-border">
-        🎧⏳ Built by Brendan O'Neil with Replit, elevenlabs and OpenAI
+        Built by Brendan O'Neil with Replit, elevenlabs and OpenAI
       </footer>
-      {/* Panels */}
       <SettingsPanel
         isOpen={isSettingsOpen}
         settings={settings}
@@ -313,14 +289,6 @@ export default function PomodoroPage() {
         isOpen={isAIGeneratorOpen}
         onClose={() => setIsAIGeneratorOpen(false)}
         onSoundscapeGenerated={handleSoundscapeGenerated}
-      />
-      <SoundscapePacksPanel
-        isOpen={isSoundscapePacksOpen}
-        onClose={() => setIsSoundscapePacksOpen(false)}
-        onPacksUnlocked={() => {
-          // Refresh pack soundscapes when packs are unlocked
-          loadPackSoundscapes();
-        }}
       />
     </div>
   );

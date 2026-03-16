@@ -1,33 +1,31 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { VolumeX, Volume2, Cloud, Coffee, Sparkles, Package, Star } from "lucide-react";
-import type { SoundscapeType, CustomSoundscape, PackSoundscape } from "@/hooks/use-audio-manager";
+import { VolumeX, Volume2, Cloud, Coffee, Sparkles } from "lucide-react";
+import type { SoundscapeType, CustomSoundscape, BonusSoundscape } from "@/hooks/use-audio-manager";
 
 interface AudioControlsProps {
   currentSoundscape: SoundscapeType;
   currentSoundscapeId: string | null;
   customSoundscapes: CustomSoundscape[];
-  packSoundscapes: PackSoundscape[];
+  bonusSoundscapes: BonusSoundscape[];
   isPlaying: boolean;
   volume: number;
   onSoundscapeChange: (type: SoundscapeType, customId?: string) => void;
   onVolumeChange: (volume: number) => void;
   onGenerateAI: () => void;
-  onViewPacks: () => void;
 }
 
 export function AudioControls({
   currentSoundscape,
   currentSoundscapeId,
   customSoundscapes,
-  packSoundscapes,
+  bonusSoundscapes,
   isPlaying,
   volume,
   onSoundscapeChange,
   onVolumeChange,
   onGenerateAI,
-  onViewPacks,
 }: AudioControlsProps) {
   const soundwaveBars = Array.from({ length: 4 }, (_, i) => (
     <div
@@ -88,61 +86,33 @@ export function AudioControls({
           </Button>
         </div>
         
-        {/* Pack Soundscapes (unlocked) */}
-        {packSoundscapes.length > 0 ? (
+        {bonusSoundscapes.length > 0 && (
           <div className="grid grid-cols-2 gap-3 mb-4">
-            {packSoundscapes.slice(0, 4).map((soundscape) => {
+            {bonusSoundscapes.map((soundscape) => {
               const getEmoji = (name: string) => {
                 if (name.toLowerCase().includes('park')) return '🌳';
                 if (name.toLowerCase().includes('thunder') || name.toLowerCase().includes('storm')) return '⛈️';
                 if (name.toLowerCase().includes('jazz') || name.toLowerCase().includes('bar')) return '🎷';
-                return '⭐';
+                return '🎵';
               };
               
               return (
                 <Button
                   key={soundscape.id}
-                  variant={currentSoundscape === "pack" && currentSoundscapeId === soundscape.id ? "default" : "ghost"}
+                  variant={currentSoundscape === "bonus" && currentSoundscapeId === soundscape.id ? "default" : "ghost"}
                   size="sm"
-                  className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1 relative"
-                  onClick={() => onSoundscapeChange("pack", soundscape.id)}
-                  data-testid={`pack-soundscape-${soundscape.id}`}
+                  className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+                  onClick={() => onSoundscapeChange("bonus", soundscape.id)}
+                  data-testid={`bonus-soundscape-${soundscape.id}`}
                 >
-                  <Star className="absolute top-1 right-1 h-3 w-3 text-muted-foreground/60" />
                   <span className="text-sm">{getEmoji(soundscape.name)}</span>
                   {soundscape.name}
                 </Button>
               );
             })}
           </div>
-        ) : (
-          <div className="mb-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 opacity-50 cursor-not-allowed flex flex-col items-center gap-1"
-                disabled
-                data-testid="locked-pack-soundscape"
-              >
-                <span className="text-sm">🔒</span>
-                Pack Sounds
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95"
-                onClick={onViewPacks}
-                data-testid="unlock-packs-button"
-              >
-                <span className="text-sm">⚙️</span>
-                Unlock in Settings
-              </Button>
-            </div>
-          </div>
         )}
         
-        {/* Custom Soundscapes */}
         {customSoundscapes.length > 0 && (
           <div className="grid grid-cols-2 gap-3 mb-4">
             {customSoundscapes.slice(0, 4).map((soundscape) => (
@@ -160,7 +130,6 @@ export function AudioControls({
           </div>
         )}
         
-        {/* Volume Control */}
         <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center justify-center w-8 h-8">
             {volume === 0 ? (
@@ -183,27 +152,15 @@ export function AudioControls({
           </span>
         </div>
         
-        <div className="grid grid-cols-2 gap-3">
-          <Button
-            variant="outline"
-            className="py-3 h-auto transition-all duration-200 active:scale-95"
-            onClick={onGenerateAI}
-            data-testid="button-generate-ai"
-          >
-            <Sparkles className="h-4 w-4 mr-1 text-primary" />
-            <span className="text-sm font-medium">Generate AI</span>
-          </Button>
-          
-          <Button
-            variant="outline"
-            className="py-3 h-auto transition-all duration-200 active:scale-95"
-            onClick={onViewPacks}
-            data-testid="button-view-packs"
-          >
-            <Package className="h-4 w-4 mr-1 text-primary" />
-            <span className="text-sm font-medium">{packSoundscapes.length > 0 ? 'View Packs' : 'Unlock Packs'}</span>
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          className="w-full py-3 h-auto transition-all duration-200 active:scale-95"
+          onClick={onGenerateAI}
+          data-testid="button-generate-ai"
+        >
+          <Sparkles className="h-4 w-4 mr-1 text-primary" />
+          <span className="text-sm font-medium">Generate AI Soundscape</span>
+        </Button>
       </CardContent>
     </Card>
   );

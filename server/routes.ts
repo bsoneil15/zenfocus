@@ -11,7 +11,6 @@ import { generateSound } from "./services/elevenlabs";
 import { soundscapeRateLimiter, suggestionsRateLimiter } from "./middleware/rate-limiter";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Rate limit status endpoint
   app.get("/api/rate-limit/status", (req, res) => {
     const soundscapeStatus = soundscapeRateLimiter.getStatus(req);
     const suggestionsStatus = suggestionsRateLimiter.getStatus(req);
@@ -32,7 +31,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Get focus prompt suggestions from OpenAI
   app.get("/api/soundscapes/suggestions", suggestionsRateLimiter.middleware(), async (req, res) => {
     try {
       const suggestions = await generateFocusPrompts();
@@ -46,7 +44,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all soundscapes
   app.get("/api/soundscapes", async (req, res) => {
     try {
       const soundscapes = await storage.getSoundscapes();
@@ -60,7 +57,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate a new soundscape using ElevenLabs
   app.post("/api/soundscapes/generate", soundscapeRateLimiter.middleware(), async (req, res) => {
     try {
       const generateRequestSchema = z.object({
@@ -86,7 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("Received name from generateSoundscapeName:", name);
       } catch (nameError) {
         console.error("Error in generateSoundscapeName:", nameError);
-        name = "🎵 Custom Soundscape";
+        name = "Custom Soundscape";
       }
 
       const soundscape = await storage.createSoundscape({
@@ -121,7 +117,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get a specific soundscape
   app.get("/api/soundscapes/:id", async (req, res) => {
     try {
       const { id } = req.params;
@@ -142,7 +137,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a pomodoro session record
   app.post("/api/sessions", async (req, res) => {
     try {
       const sessionSchema = z.object({
@@ -173,7 +167,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all pomodoro sessions
   app.get("/api/sessions", async (req, res) => {
     try {
       const sessions = await storage.getPomodoroSessions();
@@ -187,73 +180,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Newsletter signup endpoint
-  app.post("/api/newsletter/signup", async (req, res) => {
-    try {
-      const signupSchema = z.object({
-        email: z.string().email("Invalid email address"),
-      });
-
-      const validatedData = signupSchema.parse(req.body);
-      
-      const existing = await storage.getNewsletterSubscriber(validatedData.email);
-      if (existing) {
-        res.status(200).json({ 
-          message: "Already subscribed!",
-          alreadySubscribed: true 
-        });
-        return;
-      }
-
-      const subscriber = await storage.createNewsletterSubscriber({
-        email: validatedData.email,
-        subscribed: true,
-      });
-
-      const packs = await storage.getSoundscapePacks();
-      const newsletterPacks = packs.filter(pack => pack.unlockedBy === "newsletter");
-      
-      for (const pack of newsletterPacks) {
-        await storage.updateSoundscapePackUnlocked(pack.id, true);
-      }
-
-      res.json({
-        message: "Successfully subscribed to newsletter!",
-        subscriber: { email: subscriber.email },
-        unlockedPacks: newsletterPacks.length
-      });
-    } catch (error) {
-      console.error("Failed to subscribe to newsletter:", error);
-      
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ 
-          message: "Invalid email address",
-          errors: error.errors 
-        });
-      } else {
-        res.status(500).json({ 
-          message: "Failed to subscribe to newsletter",
-          error: error instanceof Error ? error.message : "Unknown error"
-        });
-      }
-    }
-  });
-
-  // Get soundscape packs
-  app.get("/api/soundscape-packs", async (req, res) => {
-    try {
-      const packs = await storage.getSoundscapePacks();
-      res.json({ packs });
-    } catch (error) {
-      console.error("Failed to get soundscape packs:", error);
-      res.status(500).json({ 
-        message: "Failed to get soundscape packs",
-        error: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-
-  // Serve audio files
   app.get("/api/audio/:filename", (req, res) => {
     try {
       const filename = decodeURIComponent(req.params.filename);
@@ -302,7 +228,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 

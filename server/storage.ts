@@ -1,4 +1,4 @@
-import { type Soundscape, type InsertSoundscape, type PomodoroSession, type InsertPomodoroSession, type NewsletterSubscriber, type InsertNewsletterSubscriber, type SoundscapePack, type InsertSoundscapePack, soundscapes, pomodoroSessions, newsletterSubscribers, soundscapePacks } from "@shared/schema";
+import { type Soundscape, type InsertSoundscape, type PomodoroSession, type InsertPomodoroSession, soundscapes, pomodoroSessions } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -11,32 +11,20 @@ export interface IStorage {
   getPomodoroSession(id: string): Promise<PomodoroSession | undefined>;
   getPomodoroSessions(): Promise<PomodoroSession[]>;
   createPomodoroSession(session: InsertPomodoroSession): Promise<PomodoroSession>;
-
-  getNewsletterSubscriber(email: string): Promise<NewsletterSubscriber | undefined>;
-  createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber>;
-  
-  getSoundscapePacks(): Promise<SoundscapePack[]>;
-  getSoundscapePack(id: string): Promise<SoundscapePack | undefined>;
-  createSoundscapePack(pack: InsertSoundscapePack): Promise<SoundscapePack>;
-  updateSoundscapePackUnlocked(id: string, isUnlocked: boolean): Promise<SoundscapePack | undefined>;
 }
 
 export class MemStorage implements IStorage {
   private soundscapes: Map<string, Soundscape>;
   private pomodoroSessions: Map<string, PomodoroSession>;
-  private newsletterSubscribers: Map<string, NewsletterSubscriber>;
-  private soundscapePacks: Map<string, SoundscapePack>;
 
   constructor() {
     this.soundscapes = new Map();
     this.pomodoroSessions = new Map();
-    this.newsletterSubscribers = new Map();
-    this.soundscapePacks = new Map();
     
-    this.initializeDefaultPacks();
+    this.initializeDefaultSoundscapes();
   }
 
-  private initializeDefaultPacks() {
+  private initializeDefaultSoundscapes() {
     const cityPark: Soundscape = {
       id: "city-park",
       name: "City park",
@@ -70,29 +58,6 @@ export class MemStorage implements IStorage {
     this.soundscapes.set(cityPark.id, cityPark);
     this.soundscapes.set(distantThunder.id, distantThunder);
     this.soundscapes.set(jazzBar.id, jazzBar);
-    
-    const pack1: SoundscapePack = {
-      id: "pack-1",
-      name: "Pack 1",
-      description: "Premium soundscape collection featuring city park, distant thunder, and jazz bar ambience",
-      isUnlocked: false,
-      unlockedBy: "newsletter",
-      soundscapeIds: ["city-park", "distant-thunder", "jazz-bar"],
-      createdAt: new Date()
-    };
-    
-    const pack2: SoundscapePack = {
-      id: "pack-2", 
-      name: "Pack 2",
-      description: "Coming Soon - Exciting new soundscapes in development",
-      isUnlocked: false,
-      unlockedBy: "coming-soon", 
-      soundscapeIds: [],
-      createdAt: new Date()
-    };
-    
-    this.soundscapePacks.set(pack1.id, pack1);
-    this.soundscapePacks.set(pack2.id, pack2);
   }
 
   async getSoundscape(id: string): Promise<Soundscape | undefined> {
@@ -137,55 +102,6 @@ export class MemStorage implements IStorage {
     this.pomodoroSessions.set(id, session);
     return session;
   }
-
-  async getNewsletterSubscriber(email: string): Promise<NewsletterSubscriber | undefined> {
-    return Array.from(this.newsletterSubscribers.values()).find(
-      (subscriber) => subscriber.email === email
-    );
-  }
-
-  async createNewsletterSubscriber(insertSubscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber> {
-    const id = randomUUID();
-    const subscriber: NewsletterSubscriber = {
-      ...insertSubscriber,
-      id,
-      subscribed: insertSubscriber.subscribed ?? true,
-      subscribedAt: new Date()
-    };
-    this.newsletterSubscribers.set(id, subscriber);
-    return subscriber;
-  }
-
-  async getSoundscapePacks(): Promise<SoundscapePack[]> {
-    return Array.from(this.soundscapePacks.values());
-  }
-
-  async getSoundscapePack(id: string): Promise<SoundscapePack | undefined> {
-    return this.soundscapePacks.get(id);
-  }
-
-  async createSoundscapePack(insertPack: InsertSoundscapePack): Promise<SoundscapePack> {
-    const id = randomUUID();
-    const pack: SoundscapePack = {
-      ...insertPack,
-      id,
-      isUnlocked: insertPack.isUnlocked ?? false,
-      soundscapeIds: insertPack.soundscapeIds ?? [],
-      createdAt: new Date()
-    };
-    this.soundscapePacks.set(id, pack);
-    return pack;
-  }
-
-  async updateSoundscapePackUnlocked(id: string, isUnlocked: boolean): Promise<SoundscapePack | undefined> {
-    const pack = this.soundscapePacks.get(id);
-    if (pack) {
-      const updatedPack = { ...pack, isUnlocked };
-      this.soundscapePacks.set(id, updatedPack);
-      return updatedPack;
-    }
-    return undefined;
-  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -205,8 +121,8 @@ export class DatabaseStorage implements IStorage {
 
   private async initializeDefaultData() {
     try {
-      const existingPacks = await db.select().from(soundscapePacks);
-      if (existingPacks.length > 0) return;
+      const existingSoundscapes = await db.select().from(soundscapes);
+      if (existingSoundscapes.some(s => s.id === "city-park")) return;
 
       await db.insert(soundscapes).values({
         id: "city-park",
@@ -234,26 +150,8 @@ export class DatabaseStorage implements IStorage {
         duration: 30,
         isPublic: true,
       }).onConflictDoNothing();
-
-      await db.insert(soundscapePacks).values({
-        id: "pack-1",
-        name: "Pack 1",
-        description: "Premium soundscape collection featuring city park, distant thunder, and jazz bar ambience",
-        isUnlocked: false,
-        unlockedBy: "newsletter",
-        soundscapeIds: ["city-park", "distant-thunder", "jazz-bar"],
-      }).onConflictDoNothing();
-
-      await db.insert(soundscapePacks).values({
-        id: "pack-2",
-        name: "Pack 2",
-        description: "Coming Soon - Exciting new soundscapes in development",
-        isUnlocked: false,
-        unlockedBy: "coming-soon",
-        soundscapeIds: [],
-      }).onConflictDoNothing();
       
-      console.log("✓ Default soundscapes and packs initialized");
+      console.log("Default soundscapes initialized");
     } catch (error) {
       console.error("Failed to initialize default data:", error);
     }
@@ -297,51 +195,6 @@ export class DatabaseStorage implements IStorage {
       .values(insertSession)
       .returning();
     return session;
-  }
-
-  async getNewsletterSubscriber(email: string): Promise<NewsletterSubscriber | undefined> {
-    await this.ensureInitialized();
-    const [subscriber] = await db.select().from(newsletterSubscribers).where(eq(newsletterSubscribers.email, email));
-    return subscriber || undefined;
-  }
-
-  async createNewsletterSubscriber(insertSubscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber> {
-    await this.ensureInitialized();
-    const [subscriber] = await db
-      .insert(newsletterSubscribers)
-      .values(insertSubscriber)
-      .returning();
-    return subscriber;
-  }
-
-  async getSoundscapePacks(): Promise<SoundscapePack[]> {
-    await this.ensureInitialized();
-    return await db.select().from(soundscapePacks);
-  }
-
-  async getSoundscapePack(id: string): Promise<SoundscapePack | undefined> {
-    await this.ensureInitialized();
-    const [pack] = await db.select().from(soundscapePacks).where(eq(soundscapePacks.id, id));
-    return pack || undefined;
-  }
-
-  async createSoundscapePack(insertPack: InsertSoundscapePack): Promise<SoundscapePack> {
-    await this.ensureInitialized();
-    const [pack] = await db
-      .insert(soundscapePacks)
-      .values(insertPack)
-      .returning();
-    return pack;
-  }
-
-  async updateSoundscapePackUnlocked(id: string, isUnlocked: boolean): Promise<SoundscapePack | undefined> {
-    await this.ensureInitialized();
-    const [pack] = await db
-      .update(soundscapePacks)
-      .set({ isUnlocked })
-      .where(eq(soundscapePacks.id, id))
-      .returning();
-    return pack || undefined;
   }
 }
 

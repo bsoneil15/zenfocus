@@ -1,6 +1,6 @@
 # Overview
 
-This is a modern Pomodoro timer application with AI-powered ambient soundscape generation. The app combines traditional Pomodoro technique productivity features with custom sound effects generated via ElevenLabs' text-to-sound API and OpenAI's GPT models. Users can run focus/break sessions with customizable timers while enjoying AI-generated ambient sounds tailored to their productivity needs.
+This is a modern Pomodoro timer application with AI-powered ambient soundscape generation. The app combines traditional Pomodoro technique productivity features with custom sound effects generated via ElevenLabs' text-to-sound API and OpenAI's GPT models. Users log in via Replit auth and get full access to all sounds — predefined, bonus, and AI-generated.
 
 # User Preferences
 
@@ -20,14 +20,14 @@ Preferred communication style: Simple, everyday language.
 - **Runtime**: Node.js with Express.js web framework
 - **Language**: TypeScript with ES modules
 - **API Design**: RESTful API with structured route handlers
-- **Storage**: In-memory storage implementation with interface-based design for easy database migration
+- **Storage**: DatabaseStorage with Drizzle ORM (PostgreSQL)
 - **Development**: Vite middleware integration for hot reloading in development
 
 ## Database Schema
 - **ORM**: Drizzle ORM with PostgreSQL dialect
 - **Tables**: 
-  - Users (authentication)
-  - Soundscapes (AI-generated audio content)
+  - Users (authentication via Replit auth)
+  - Soundscapes (predefined + AI-generated audio content)
   - Pomodoro Sessions (timer session tracking)
 - **Schema Validation**: Zod schemas for type-safe database operations
 
@@ -36,8 +36,9 @@ Preferred communication style: Simple, everyday language.
 - **Audio Context**: Browser-native AudioContext with gain nodes for volume control
 - **Looping**: Custom audio buffer creation and seamless looping implementation
 - **Notifications**: Custom notification sounds generated procedurally
-- **Predefined Sounds**: Rain and Coffee Shop audio served via `/api/audio/:filename` endpoint from `attached_assets/` directory (filenames are mapped in `use-audio-manager.tsx`)
-- **Pack Sounds**: Soundscape packs filtered by unlock status; only sounds from unlocked packs are shown in the UI
+- **Predefined Sounds**: Rain and Coffee Shop audio served via `/api/audio/:filename` endpoint from `attached_assets/` directory
+- **Bonus Sounds**: City Park, Distant Thunder, Jazz Bar — all available to logged-in users automatically
+- **AI Generated**: Custom soundscapes generated via ElevenLabs API
 
 ## State Management Patterns
 - **Timer State**: Custom hook with localStorage persistence for settings

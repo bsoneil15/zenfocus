@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -24,6 +24,11 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const [focusDuration, setFocusDuration] = useState([settings.focusDuration]);
   const [breakDuration, setBreakDuration] = useState([settings.breakDuration]);
+
+  useEffect(() => {
+    setFocusDuration([settings.focusDuration]);
+    setBreakDuration([settings.breakDuration]);
+  }, [settings.focusDuration, settings.breakDuration]);
 
   const handleSave = () => {
     onUpdateSettings({

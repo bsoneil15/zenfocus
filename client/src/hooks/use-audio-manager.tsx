@@ -139,7 +139,12 @@ export function useAudioManager() {
   }, [stopCurrentAudio]);
 
   const playPredefinedSoundscape = useCallback(async (type: "rain" | "coffee") => {
-    const audioData = type === "rain" ? "/audio/rain.mp3" : "/audio/coffee.mp3";
+    const filenames: Record<string, string> = {
+      rain: "rainfall_in_a_jungle-1757090030727_1757091361689.mp3",
+      coffee: "coffee_shop_in_nyc,_-#3-1757090374207_1757091361687.mp3",
+    };
+    const filename = filenames[type];
+    const audioData = `/api/audio/${encodeURIComponent(filename)}`;
     
     try {
       const audioBuffer = await createAudioBuffer(audioData, audioContextRef.current!);
@@ -286,8 +291,15 @@ export function useAudioManager() {
         }
       });
 
+      const unlockedSoundscapeIds = new Set<string>();
+      packsData.packs
+        .filter((pack: any) => pack.isUnlocked && Array.isArray(pack.soundscapeIds))
+        .forEach((pack: any) => {
+          pack.soundscapeIds.forEach((sid: string) => unlockedSoundscapeIds.add(sid));
+        });
+
       const packSounds: PackSoundscape[] = data.soundscapes
-        .filter((s: any) => s.isPublic)
+        .filter((s: any) => s.isPublic && unlockedSoundscapeIds.has(s.id))
         .map((s: any) => ({
           id: s.id,
           name: s.name,

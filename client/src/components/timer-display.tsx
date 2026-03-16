@@ -22,10 +22,10 @@ export function TimerDisplay({
 
   const sessionDots = useMemo(() => {
     return Array.from({ length: 4 }, (_, i) => (
-      <i
+      <div
         key={i}
-        className={`fas fa-circle text-xs ${
-          i < sessionCount % 4 ? "text-primary" : "text-muted-foreground"
+        className={`w-2 h-2 rounded-full ${
+          i < sessionCount % 4 ? "bg-primary" : "bg-muted-foreground/30"
         }`}
         data-testid={`session-dot-${i}`}
       />
@@ -58,8 +58,6 @@ export function TimerDisplay({
           style={{ 
             strokeDasharray: circumference,
             strokeDashoffset: strokeDashoffset,
-            transform: 'rotate(-90deg)',
-            transformOrigin: '50% 50%',
             transition: 'stroke-dashoffset 0.3s ease-out'
           }}
         />

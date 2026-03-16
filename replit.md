@@ -36,6 +36,8 @@ Preferred communication style: Simple, everyday language.
 - **Audio Context**: Browser-native AudioContext with gain nodes for volume control
 - **Looping**: Custom audio buffer creation and seamless looping implementation
 - **Notifications**: Custom notification sounds generated procedurally
+- **Predefined Sounds**: Rain and Coffee Shop audio served via `/api/audio/:filename` endpoint from `attached_assets/` directory (filenames are mapped in `use-audio-manager.tsx`)
+- **Pack Sounds**: Soundscape packs filtered by unlock status; only sounds from unlocked packs are shown in the UI
 
 ## State Management Patterns
 - **Timer State**: Custom hook with localStorage persistence for settings

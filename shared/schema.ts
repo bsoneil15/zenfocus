@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -23,6 +23,16 @@ export const pomodoroSessions = pgTable("pomodoro_sessions", {
   soundscapeId: varchar("soundscape_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const dailyUsage = pgTable("daily_usage", {
+  key: text("key").notNull(),
+  date: text("date").notNull(),
+  count: integer("count").notNull().default(0),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.key, table.date] }),
+}));
+
+export type DailyUsageRow = typeof dailyUsage.$inferSelect;
 
 export const insertSoundscapeSchema = createInsertSchema(soundscapes).omit({
   id: true,

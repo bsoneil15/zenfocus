@@ -1,9 +1,9 @@
-import { type Soundscape, type InsertSoundscape, type PomodoroSession, type InsertPomodoroSession, soundscapes, pomodoroSessions } from "@shared/schema";
+import { type Soundscape, type InsertSoundscape, type PomodoroSession, type InsertPomodoroSession, soundscapes, pomodoroSessions, dailyUsage } from "@shared/schema";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, lt, sql } from "drizzle-orm";
 import {
   ObjectStorageService,
   objectStorageClient,
@@ -20,15 +20,21 @@ export interface IStorage {
   getPomodoroSession(id: string): Promise<PomodoroSession | undefined>;
   getPomodoroSessions(): Promise<PomodoroSession[]>;
   createPomodoroSession(session: InsertPomodoroSession): Promise<PomodoroSession>;
+
+  getDailyUsageCount(key: string, date: string): Promise<number>;
+  incrementDailyUsageCount(key: string, date: string): Promise<number>;
+  cleanupStaleDailyUsage(currentDate: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
   private soundscapes: Map<string, Soundscape>;
   private pomodoroSessions: Map<string, PomodoroSession>;
+  private dailyUsage: Map<string, { date: string; count: number }>;
 
   constructor() {
     this.soundscapes = new Map();
     this.pomodoroSessions = new Map();
+    this.dailyUsage = new Map();
     
     this.initializeDefaultSoundscapes();
   }
@@ -125,6 +131,27 @@ export class MemStorage implements IStorage {
     };
     this.pomodoroSessions.set(id, session);
     return session;
+  }
+
+  async getDailyUsageCount(key: string, date: string): Promise<number> {
+    const entry = this.dailyUsage.get(key);
+    if (!entry || entry.date !== date) return 0;
+    return entry.count;
+  }
+
+  async incrementDailyUsageCount(key: string, date: string): Promise<number> {
+    const entry = this.dailyUsage.get(key);
+    const next = !entry || entry.date !== date ? { date, count: 1 } : { date, count: entry.count + 1 };
+    this.dailyUsage.set(key, next);
+    return next.count;
+  }
+
+  async cleanupStaleDailyUsage(currentDate: string): Promise<void> {
+    const stale: string[] = [];
+    this.dailyUsage.forEach((entry, key) => {
+      if (entry.date !== currentDate) stale.push(key);
+    });
+    stale.forEach((key) => this.dailyUsage.delete(key));
   }
 }
 
@@ -319,6 +346,30 @@ export class DatabaseStorage implements IStorage {
       .values(insertSession)
       .returning();
     return session;
+  }
+
+  async getDailyUsageCount(key: string, date: string): Promise<number> {
+    const [row] = await db
+      .select()
+      .from(dailyUsage)
+      .where(and(eq(dailyUsage.key, key), eq(dailyUsage.date, date)));
+    return row?.count ?? 0;
+  }
+
+  async incrementDailyUsageCount(key: string, date: string): Promise<number> {
+    const [row] = await db
+      .insert(dailyUsage)
+      .values({ key, date, count: 1 })
+      .onConflictDoUpdate({
+        target: [dailyUsage.key, dailyUsage.date],
+        set: { count: sql`${dailyUsage.count} + 1` },
+      })
+      .returning();
+    return row.count;
+  }
+
+  async cleanupStaleDailyUsage(currentDate: string): Promise<void> {
+    await db.delete(dailyUsage).where(lt(dailyUsage.date, currentDate));
   }
 }
 

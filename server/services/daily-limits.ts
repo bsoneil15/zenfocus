@@ -1,14 +1,8 @@
 import type { Request } from "express";
 import { isIP } from "net";
+import { storage } from "../storage";
 
 export const DAILY_SOUNDSCAPE_LIMIT = 3;
-
-interface DailyEntry {
-  date: string;
-  count: number;
-}
-
-const store = new Map<string, DailyEntry>();
 
 function todayKey(): string {
   const now = new Date();
@@ -38,50 +32,34 @@ export function getDailyLimitKey(req: Request): string {
   return `ip:${getClientIp(req)}`;
 }
 
-function getOrInitEntry(key: string): DailyEntry {
-  const today = todayKey();
-  const entry = store.get(key);
-  if (!entry || entry.date !== today) {
-    const fresh = { date: today, count: 0 };
-    store.set(key, fresh);
-    return fresh;
-  }
-  return entry;
-}
-
-export function getDailyUsage(req: Request): { used: number; remaining: number; limit: number } {
-  const key = getDailyLimitKey(req);
-  const entry = getOrInitEntry(key);
+function buildUsage(count: number) {
   return {
-    used: entry.count,
-    remaining: Math.max(0, DAILY_SOUNDSCAPE_LIMIT - entry.count),
+    used: count,
+    remaining: Math.max(0, DAILY_SOUNDSCAPE_LIMIT - count),
     limit: DAILY_SOUNDSCAPE_LIMIT,
   };
 }
 
-export function canGenerate(req: Request): boolean {
+export async function getDailyUsage(req: Request) {
   const key = getDailyLimitKey(req);
-  const entry = getOrInitEntry(key);
-  return entry.count < DAILY_SOUNDSCAPE_LIMIT;
+  const count = await storage.getDailyUsageCount(key, todayKey());
+  return buildUsage(count);
 }
 
-export function incrementDailyUsage(req: Request): { used: number; remaining: number; limit: number } {
+export async function canGenerate(req: Request): Promise<boolean> {
   const key = getDailyLimitKey(req);
-  const entry = getOrInitEntry(key);
-  entry.count += 1;
-  store.set(key, entry);
-  return {
-    used: entry.count,
-    remaining: Math.max(0, DAILY_SOUNDSCAPE_LIMIT - entry.count),
-    limit: DAILY_SOUNDSCAPE_LIMIT,
-  };
+  const count = await storage.getDailyUsageCount(key, todayKey());
+  return count < DAILY_SOUNDSCAPE_LIMIT;
+}
+
+export async function incrementDailyUsage(req: Request) {
+  const key = getDailyLimitKey(req);
+  const count = await storage.incrementDailyUsageCount(key, todayKey());
+  return buildUsage(count);
 }
 
 setInterval(() => {
-  const today = todayKey();
-  const stale: string[] = [];
-  store.forEach((entry, key) => {
-    if (entry.date !== today) stale.push(key);
+  storage.cleanupStaleDailyUsage(todayKey()).catch((err) => {
+    console.error("Failed to clean up stale daily usage rows:", err);
   });
-  stale.forEach((key) => store.delete(key));
 }, 60 * 60 * 1000).unref?.();

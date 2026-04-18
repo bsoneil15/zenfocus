@@ -41,9 +41,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  app.get("/api/soundscapes/daily-limit", (req, res) => {
-    const usage = getDailyUsageServer(req);
-    res.json(usage);
+  app.get("/api/soundscapes/daily-limit", async (req, res) => {
+    try {
+      const usage = await getDailyUsageServer(req);
+      res.json(usage);
+    } catch (error) {
+      console.error("Failed to read daily usage:", error);
+      res.status(500).json({ message: "Failed to read daily usage" });
+    }
   });
 
   app.get("/api/soundscapes/suggestions", suggestionsRateLimiter.middleware(), async (req, res) => {
@@ -77,8 +82,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/soundscapes/generate", soundscapeRateLimiter.middleware(), async (req, res) => {
     try {
-      if (!canGenerateDaily(req)) {
-        const usage = getDailyUsageServer(req);
+      if (!(await canGenerateDaily(req))) {
+        const usage = await getDailyUsageServer(req);
         return res.status(429).json({
           code: "daily_limit_reached",
           message: `You've reached your daily limit of ${DAILY_SOUNDSCAPE_LIMIT} custom soundscapes. Try again tomorrow!`,
@@ -114,7 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const ownerId = (req.user as any)?.claims?.sub ?? null;
 
-      const dailyUsage = incrementDailyUsageServer(req);
+      const dailyUsage = await incrementDailyUsageServer(req);
 
       const soundscape = await storage.createSoundscape({
         name,

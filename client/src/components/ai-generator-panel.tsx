@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -35,6 +35,7 @@ export function AIGeneratorPanel({
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const lastAlreadyGeneratingToastAt = useRef<number>(0);
 
   const { data: dailyUsage, isLoading: isLoadingUsage } = useQuery<DailyUsage>({
     queryKey: ["/api/soundscapes/daily-limit"],
@@ -273,10 +274,14 @@ export function AIGeneratorPanel({
           className="flex gap-2 sm:gap-3"
           onClick={() => {
             if (isGenerating) {
-              toast({
-                title: "Still on it!",
-                description: "Real AI is doing real work here — just give it a moment.",
-              });
+              const now = Date.now();
+              if (now - lastAlreadyGeneratingToastAt.current > 4000) {
+                lastAlreadyGeneratingToastAt.current = now;
+                toast({
+                  title: "Still on it!",
+                  description: "Real AI is doing real work here — just give it a moment.",
+                });
+              }
             }
           }}
         >

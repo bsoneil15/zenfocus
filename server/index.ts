@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { ensurePresetAudiosUploaded } from "./preset_audio";
+import { startElevenLabsHealthMonitor } from "./services/elevenlabs";
 import path from "path";
 
 const app = express();
@@ -63,6 +64,12 @@ app.use((req, res, next) => {
   ensurePresetAudiosUploaded().catch((err) => {
     console.error("Failed to ensure preset audios in object storage:", err);
   });
+
+  // Start the ElevenLabs key health monitor: pings /v1/user shortly after
+  // startup and every 5 minutes, logging a greppable WARN
+  // (`[elevenlabs-health] WARN: ...`) when the key is rejected or rate
+  // limited so we notice before users do.
+  startElevenLabsHealthMonitor();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

@@ -9,6 +9,11 @@ import { isAuthenticated } from "./replit_integrations/auth";
 import { generateFocusPrompts, generateSoundscapeName } from "./services/openai";
 import { generateSound } from "./services/elevenlabs";
 import { soundscapeRateLimiter, suggestionsRateLimiter } from "./middleware/rate-limiter";
+import {
+  ObjectStorageService,
+  ObjectNotFoundError,
+  canAccessObject,
+} from "./replit_integrations/object_storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/rate-limit/status", (req, res) => {
@@ -184,12 +189,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const soundscape = await storage.getSoundscape(id);
-      
+
       if (!soundscape) {
         res.status(404).json({ message: "Soundscape not found" });
         return;
       }
-      
+
+      // Access control: public soundscapes are readable by anyone; private
+      // (per-user) soundscapes are only readable by their owner.
+      if (!soundscape.isPublic) {
+        const userId = (req as any).user?.claims?.sub as string | undefined;
+        if (!userId || soundscape.ownerId !== userId) {
+          res.status(404).json({ message: "Soundscape not found" });
+          return;
+        }
+      }
+
       res.json(soundscape);
     } catch (error) {
       console.error("Failed to get soundscape:", error);
@@ -297,6 +312,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       timestamp: new Date().toISOString(),
       uptime: process.uptime()
     });
+  });
+
+  // Serve uploaded objects (used for AI-generated soundscape audio).
+  // Enforces ACL: public objects are served to anyone; private objects
+  // require an authenticated owner. We return 404 (not 403) to avoid
+  // revealing whether a private path exists.
+  app.get("/objects/:objectPath(*)", async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      const userId = (req as any).user?.claims?.sub as string | undefined;
+      const allowed = await canAccessObject({
+        objectFile,
+        userId,
+        requestedPermission: "read" as any,
+      });
+      if (!allowed) {
+        return res.status(404).json({ message: "Object not found" });
+      }
+      await objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ message: "Object not found" });
+      }
+      console.error("Error serving object:", error);
+      return res.status(500).json({ message: "Failed to serve object" });
+    }
   });
 
   const httpServer = createServer(app);

@@ -1,4 +1,10 @@
 import { z } from "zod";
+import { randomUUID } from "crypto";
+import {
+  ObjectStorageService,
+  objectStorageClient,
+  setObjectAclPolicy,
+} from "../replit_integrations/object_storage";
 
 export interface SoundGenerationRequest {
   prompt: string;
@@ -80,32 +86,55 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
         throw new Error(`Expected audio data but received: ${contentType || 'unknown content type'}`);
       }
       
-      // If audio data, save to file system and return local URL
+      // If audio data, upload to durable object storage and return a stable
+      // path. Files used to be written to attached_assets/ which is wiped on
+      // container rebuild — soundscape rows survived but audio was gone.
       const audioBuffer = await response.arrayBuffer();
-      
-      // Verify the buffer is not empty
+
       if (audioBuffer.byteLength === 0) {
         throw new Error("Received empty audio buffer from ElevenLabs API");
       }
-      
-      // Create a filename based on timestamp and prompt
-      const filename = `soundscape_${Date.now()}.mp3`;
-      const fs = await import('fs/promises');
-      const path = await import('path');
-      
-      // Save to the attached_assets directory (where audio files are served from)
-      const audioPath = path.join(process.cwd(), 'attached_assets', filename);
-      
+
+      const objectId = `${Date.now()}_${randomUUID()}.mp3`;
+      const objectStorage = new ObjectStorageService();
+      let privateDir = objectStorage.getPrivateObjectDir();
+      if (!privateDir.endsWith("/")) privateDir = `${privateDir}/`;
+      const fullPath = `${privateDir}soundscapes/${objectId}`;
+
+      // fullPath is /<bucketName>/<objectName>
+      const stripped = fullPath.startsWith("/") ? fullPath.slice(1) : fullPath;
+      const slash = stripped.indexOf("/");
+      const bucketName = stripped.slice(0, slash);
+      const objectName = stripped.slice(slash + 1);
+
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectName);
+
       try {
-        await fs.writeFile(audioPath, Buffer.from(audioBuffer));
-        console.log(`Successfully saved audio file: ${filename} (${audioBuffer.byteLength} bytes)`);
-      } catch (writeError) {
-        console.error("Failed to write audio file:", writeError);
-        throw new Error(`Failed to save audio file: ${writeError instanceof Error ? writeError.message : 'Unknown error'}`);
+        await file.save(Buffer.from(audioBuffer), {
+          contentType: "audio/mpeg",
+          resumable: false,
+        });
+        // Mark object public so the /objects/* serving route allows reads
+        // without per-user ACL checks.
+        await setObjectAclPolicy(file, {
+          owner: "system",
+          visibility: "public",
+        });
+        console.log(
+          `Saved soundscape to object storage: soundscapes/${objectId} (${audioBuffer.byteLength} bytes)`
+        );
+      } catch (uploadError) {
+        console.error("Failed to upload audio to object storage:", uploadError);
+        throw new Error(
+          `Failed to save audio: ${
+            uploadError instanceof Error ? uploadError.message : "Unknown error"
+          }`
+        );
       }
-      
+
       return {
-        audioUrl: `/api/audio/${filename}`,
+        audioUrl: `/objects/soundscapes/${objectId}`,
         duration: validatedRequest.duration,
       };
     }

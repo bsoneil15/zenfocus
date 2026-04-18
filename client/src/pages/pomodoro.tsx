@@ -53,6 +53,7 @@ export default function PomodoroPage() {
     setVolume,
     setSoundscape,
     addCustomSoundscape,
+    deleteCustomSoundscape,
     playNotificationSound,
   } = useAudioManager();
 
@@ -268,6 +269,8 @@ export default function PomodoroPage() {
           onVolumeChange={setVolume}
           onSoundscapeChange={handleSoundscapeChange}
           onGenerateAI={() => setIsAIGeneratorOpen(true)}
+          canDeleteCustom={!!user}
+          onDeleteCustom={deleteCustomSoundscape}
         />
 
         <SessionStats

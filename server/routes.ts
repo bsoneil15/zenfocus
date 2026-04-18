@@ -186,6 +186,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/soundscapes/:id", isAuthenticated, async (req, res) => {
+    try {
+      const ownerId = (req.user as any)?.claims?.sub;
+      if (!ownerId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { id } = req.params;
+      const existing = await storage.getSoundscape(id);
+      if (!existing || existing.ownerId !== ownerId) {
+        // Don't reveal whether it exists for another user.
+        return res.status(404).json({ message: "Soundscape not found" });
+      }
+
+      const deleted = await storage.deleteSoundscapeForOwner(id, ownerId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Soundscape not found" });
+      }
+
+      // Best-effort: remove the underlying audio object from object storage.
+      // Failures here are logged but do not fail the request — the row is
+      // already gone and orphaned objects can be cleaned up separately.
+      const audioUrl = deleted.audioUrl;
+      if (audioUrl && audioUrl.startsWith("/objects/")) {
+        try {
+          const objectStorage = new ObjectStorageService();
+          const objectFile = await objectStorage.getObjectEntityFile(audioUrl);
+          await objectFile.delete({ ignoreNotFound: true });
+        } catch (cleanupError) {
+          if (!(cleanupError instanceof ObjectNotFoundError)) {
+            console.error("Failed to delete soundscape audio object:", cleanupError);
+          }
+        }
+      }
+
+      res.json({ success: true, id });
+    } catch (error) {
+      console.error("Failed to delete soundscape:", error);
+      res.status(500).json({
+        message: "Failed to delete soundscape",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
+
   app.get("/api/soundscapes/:id", async (req, res) => {
     try {
       const { id } = req.params;

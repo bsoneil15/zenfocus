@@ -255,6 +255,53 @@ export function useAudioManager() {
     }
   }, [stopCurrentAudio, playPredefinedSoundscape, playCustomSoundscape, playBonusSoundscape, customSoundscapes, bonusSoundscapes]);
 
+  const deleteCustomSoundscape = useCallback(async (id: string) => {
+    const target = customSoundscapes.find(s => s.id === id);
+    try {
+      await apiRequest("DELETE", `/api/soundscapes/${id}`);
+
+      // If the deleted one is currently playing, stop it.
+      if (currentSoundscape === "custom" && currentSoundscapeId === id) {
+        stopCurrentAudio();
+        setCurrentSoundscape("none");
+        setCurrentSoundscapeId(null);
+      }
+
+      setCustomSoundscapes(prev => {
+        const updated = prev.filter(s => s.id !== id);
+        if (!isAuthenticated) {
+          try {
+            localStorage.setItem("custom-soundscapes", JSON.stringify(updated));
+          } catch (error) {
+            console.error("Failed to update custom soundscapes in localStorage:", error);
+          }
+        }
+        return updated;
+      });
+
+      setUnavailableIds(prev => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      reportedMissingRef.current.delete(id);
+
+      toast({
+        title: "Soundscape deleted",
+        description: target ? `"${target.name}" was removed.` : "Soundscape was removed.",
+      });
+    } catch (error) {
+      console.error("Failed to delete custom soundscape:", error);
+      toast({
+        title: "Couldn't delete soundscape",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  }, [customSoundscapes, currentSoundscape, currentSoundscapeId, stopCurrentAudio, isAuthenticated, toast]);
+
   const addCustomSoundscape = useCallback((soundscape: CustomSoundscape) => {
     setCustomSoundscapes(prev => {
       if (prev.some(s => s.id === soundscape.id)) return prev;
@@ -394,6 +441,7 @@ export function useAudioManager() {
     setVolume,
     setSoundscape,
     addCustomSoundscape,
+    deleteCustomSoundscape,
     playNotificationSound,
     stopCurrentAudio,
   };

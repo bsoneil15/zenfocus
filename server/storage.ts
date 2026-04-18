@@ -15,6 +15,7 @@ export interface IStorage {
   getSoundscapes(): Promise<Soundscape[]>;
   getSoundscapesByOwner(ownerId: string): Promise<Soundscape[]>;
   createSoundscape(soundscape: InsertSoundscape): Promise<Soundscape>;
+  deleteSoundscapeForOwner(id: string, ownerId: string): Promise<Soundscape | undefined>;
   
   getPomodoroSession(id: string): Promise<PomodoroSession | undefined>;
   getPomodoroSessions(): Promise<PomodoroSession[]>;
@@ -95,6 +96,13 @@ export class MemStorage implements IStorage {
     };
     this.soundscapes.set(id, soundscape);
     return soundscape;
+  }
+
+  async deleteSoundscapeForOwner(id: string, ownerId: string): Promise<Soundscape | undefined> {
+    const existing = this.soundscapes.get(id);
+    if (!existing || existing.ownerId !== ownerId) return undefined;
+    this.soundscapes.delete(id);
+    return existing;
   }
 
   async getPomodoroSession(id: string): Promise<PomodoroSession | undefined> {
@@ -282,6 +290,15 @@ export class DatabaseStorage implements IStorage {
       .values(insertSoundscape)
       .returning();
     return soundscape;
+  }
+
+  async deleteSoundscapeForOwner(id: string, ownerId: string): Promise<Soundscape | undefined> {
+    await this.ensureInitialized();
+    const [deleted] = await db
+      .delete(soundscapes)
+      .where(and(eq(soundscapes.id, id), eq(soundscapes.ownerId, ownerId)))
+      .returning();
+    return deleted || undefined;
   }
 
   async getPomodoroSession(id: string): Promise<PomodoroSession | undefined> {

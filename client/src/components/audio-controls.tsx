@@ -9,6 +9,7 @@ interface AudioControlsProps {
   currentSoundscapeId: string | null;
   customSoundscapes: CustomSoundscape[];
   bonusSoundscapes: BonusSoundscape[];
+  unavailableIds?: Set<string>;
   isPlaying: boolean;
   volume: number;
   onSoundscapeChange: (type: SoundscapeType, customId?: string) => void;
@@ -21,12 +22,14 @@ export function AudioControls({
   currentSoundscapeId,
   customSoundscapes,
   bonusSoundscapes,
+  unavailableIds,
   isPlaying,
   volume,
   onSoundscapeChange,
   onVolumeChange,
   onGenerateAI,
 }: AudioControlsProps) {
+  const isUnavailable = (id: string) => !!unavailableIds?.has(id);
   const soundwaveBars = Array.from({ length: 4 }, (_, i) => (
     <div
       key={i}
@@ -96,17 +99,20 @@ export function AudioControls({
                 return '🎵';
               };
               
+              const unavailable = isUnavailable(soundscape.id);
               return (
                 <Button
                   key={soundscape.id}
                   variant={currentSoundscape === "bonus" && currentSoundscapeId === soundscape.id ? "default" : "ghost"}
                   size="sm"
-                  className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+                  disabled={unavailable}
+                  className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95 flex flex-col items-center gap-1 disabled:opacity-50 disabled:line-through"
                   onClick={() => onSoundscapeChange("bonus", soundscape.id)}
                   data-testid={`bonus-soundscape-${soundscape.id}`}
+                  title={unavailable ? "Audio file unavailable" : undefined}
                 >
                   <span className="text-sm">{getEmoji(soundscape.name)}</span>
-                  {soundscape.name}
+                  {unavailable ? `${soundscape.name} (unavailable)` : soundscape.name}
                 </Button>
               );
             })}
@@ -115,18 +121,23 @@ export function AudioControls({
         
         {customSoundscapes.length > 0 && (
           <div className="grid grid-cols-2 gap-3 mb-4">
-            {customSoundscapes.slice(0, 4).map((soundscape) => (
-              <Button
-                key={soundscape.id}
-                variant={currentSoundscape === "custom" && currentSoundscapeId === soundscape.id ? "default" : "ghost"}
-                size="sm"
-                className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95"
-                onClick={() => onSoundscapeChange("custom", soundscape.id)}
-                data-testid={`custom-soundscape-${soundscape.id}`}
-              >
-                {soundscape.name}
-              </Button>
-            ))}
+            {customSoundscapes.slice(0, 4).map((soundscape) => {
+              const unavailable = isUnavailable(soundscape.id);
+              return (
+                <Button
+                  key={soundscape.id}
+                  variant={currentSoundscape === "custom" && currentSoundscapeId === soundscape.id ? "default" : "ghost"}
+                  size="sm"
+                  disabled={unavailable}
+                  className="py-3 px-4 h-auto text-xs font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:line-through"
+                  onClick={() => onSoundscapeChange("custom", soundscape.id)}
+                  data-testid={`custom-soundscape-${soundscape.id}`}
+                  title={unavailable ? "Audio file unavailable" : undefined}
+                >
+                  {unavailable ? `${soundscape.name} (unavailable)` : soundscape.name}
+                </Button>
+              );
+            })}
           </div>
         )}
         

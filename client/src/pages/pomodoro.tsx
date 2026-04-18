@@ -47,6 +47,7 @@ export default function PomodoroPage() {
     currentSoundscapeId,
     customSoundscapes,
     bonusSoundscapes,
+    unavailableIds,
     volume,
     isPlaying,
     setVolume,
@@ -261,6 +262,7 @@ export default function PomodoroPage() {
           currentSoundscapeId={currentSoundscapeId}
           customSoundscapes={customSoundscapes}
           bonusSoundscapes={bonusSoundscapes}
+          unavailableIds={unavailableIds}
           volume={volume}
           isPlaying={isPlaying}
           onVolumeChange={setVolume}

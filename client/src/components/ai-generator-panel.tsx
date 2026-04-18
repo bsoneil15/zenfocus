@@ -120,32 +120,36 @@ export function AIGeneratorPanel({
         response: error.response
       });
       
-      // Handle rate limiting specifically
       loadingToast.dismiss();
-      if (error.status === 429 || (error.response && error.response.status === 429)) {
-        let errorData;
-        try {
-          errorData = error.response ? await error.response.json() : error;
-        } catch {
-          errorData = { message: "Rate limit exceeded" };
-        }
-        
-        const retryMinutes = errorData.retryAfter 
+
+      const errorData = error?.data ?? {};
+      const status = error?.status;
+
+      // Local rate-limit middleware (per-IP) returns retryAfter/maxRequests
+      if (status === 429 && errorData.retryAfter !== undefined) {
+        const retryMinutes = errorData.retryAfter
           ? Math.ceil(errorData.retryAfter / (60 * 1000))
           : 'a few';
-        
         toast({
           title: "Rate Limit Exceeded",
           description: `Too many soundscape requests. You can make ${errorData.maxRequests || 5} per hour. Try again in ${retryMinutes} minute(s).`,
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to generate soundscape. Please try again.",
-          variant: "destructive",
-        });
+        return;
       }
+
+      const description =
+        errorData.message ||
+        (error instanceof Error ? error.message : "Failed to generate soundscape. Please try again.");
+
+      toast({
+        title:
+          status === 429 ? "Rate Limit Exceeded" :
+          status === 503 ? "Generation Unavailable" :
+          "Couldn't generate soundscape",
+        description,
+        variant: "destructive",
+      });
     } finally {
       setIsGenerating(false);
     }

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createAudioBuffer, createLoopingAudio } from "@/lib/audio-utils";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 
 export type SoundscapeType = "none" | "rain" | "coffee" | "custom" | "bonus";
 
@@ -19,12 +21,16 @@ export interface BonusSoundscape {
 }
 
 export function useAudioManager() {
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const [currentSoundscape, setCurrentSoundscape] = useState<SoundscapeType>("none");
   const [currentSoundscapeId, setCurrentSoundscapeId] = useState<string | null>(null);
   const [customSoundscapes, setCustomSoundscapes] = useState<CustomSoundscape[]>([]);
   const [bonusSoundscapes, setBonusSoundscapes] = useState<BonusSoundscape[]>([]);
+  const [unavailableIds, setUnavailableIds] = useState<Set<string>>(new Set());
   const [volume, setVolume] = useState(0.3);
   const [isPlaying, setIsPlaying] = useState(false);
+  const reportedMissingRef = useRef<Set<string>>(new Set());
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -146,6 +152,23 @@ export function useAudioManager() {
     }
   }, [playAudioBuffer]);
 
+  const reportUnavailable = useCallback((soundscape: { id: string; name: string }) => {
+    setUnavailableIds(prev => {
+      if (prev.has(soundscape.id)) return prev;
+      const next = new Set(prev);
+      next.add(soundscape.id);
+      return next;
+    });
+    if (!reportedMissingRef.current.has(soundscape.id)) {
+      reportedMissingRef.current.add(soundscape.id);
+      toast({
+        title: "Soundscape unavailable",
+        description: `"${soundscape.name}" couldn't be loaded — its audio file is missing on the server.`,
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
   const playCustomSoundscape = useCallback(async (soundscape: CustomSoundscape) => {
     try {
       if (!audioContextRef.current) {
@@ -161,8 +184,18 @@ export function useAudioManager() {
         url: soundscape.audioUrl,
         error: error instanceof Error ? error.message : error
       });
+      const message = error instanceof Error ? error.message : String(error);
+      if (/404|not found/i.test(message)) {
+        reportUnavailable(soundscape);
+      } else {
+        toast({
+          title: "Couldn't play soundscape",
+          description: `"${soundscape.name}" failed to play: ${message}`,
+          variant: "destructive",
+        });
+      }
     }
-  }, [playAudioBuffer]);
+  }, [playAudioBuffer, reportUnavailable, toast]);
 
   const playBonusSoundscape = useCallback(async (soundscape: BonusSoundscape) => {
     try {
@@ -185,8 +218,18 @@ export function useAudioManager() {
         url: soundscape.audioUrl,
         error: error instanceof Error ? error.message : error
       });
+      const message = error instanceof Error ? error.message : String(error);
+      if (/404|not found/i.test(message)) {
+        reportUnavailable(soundscape);
+      } else {
+        toast({
+          title: "Couldn't play soundscape",
+          description: `"${soundscape.name}" failed to play: ${message}`,
+          variant: "destructive",
+        });
+      }
     }
-  }, [playAudioBuffer]);
+  }, [playAudioBuffer, reportUnavailable, toast]);
 
   const setSoundscape = useCallback(async (type: SoundscapeType, customId?: string) => {
     setCurrentSoundscape(type);
@@ -214,27 +257,68 @@ export function useAudioManager() {
 
   const addCustomSoundscape = useCallback((soundscape: CustomSoundscape) => {
     setCustomSoundscapes(prev => {
+      if (prev.some(s => s.id === soundscape.id)) return prev;
       const updated = [...prev, soundscape];
-      try {
-        localStorage.setItem("custom-soundscapes", JSON.stringify(updated));
-      } catch (error) {
-        console.error("Failed to save custom soundscapes to localStorage:", error);
+      // Anonymous users keep a local fallback so they don't lose what they
+      // generated this session. Signed-in users get their list from the server.
+      if (!isAuthenticated) {
+        try {
+          localStorage.setItem("custom-soundscapes", JSON.stringify(updated));
+        } catch (error) {
+          console.error("Failed to save custom soundscapes to localStorage:", error);
+        }
       }
       return updated;
     });
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("custom-soundscapes");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setCustomSoundscapes(parsed);
+    let cancelled = false;
+    // Reset reported-missing tracking on auth transitions so a re-login can
+    // re-toast about a still-missing file.
+    reportedMissingRef.current = new Set();
+    setUnavailableIds(new Set());
+
+    if (isAuthenticated) {
+      (async () => {
+        try {
+          const response = await apiRequest("GET", "/api/soundscapes/mine");
+          const data = await response.json();
+          if (cancelled) return;
+          const mine: CustomSoundscape[] = (data.soundscapes || []).map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            audioUrl: s.audioUrl,
+            prompt: s.prompt,
+          }));
+          // Merge with any soundscapes already added optimistically this
+          // session so a slow /mine response can't drop a fresh generation.
+          setCustomSoundscapes(prev => {
+            const byId = new Map<string, CustomSoundscape>();
+            for (const s of mine) byId.set(s.id, s);
+            for (const s of prev) if (!byId.has(s.id)) byId.set(s.id, s);
+            return Array.from(byId.values());
+          });
+          // We have a durable server-side list now; clear the legacy local copy.
+          try { localStorage.removeItem("custom-soundscapes"); } catch {}
+        } catch (error) {
+          console.error("Failed to load saved soundscapes:", error);
+        }
+      })();
+    } else {
+      // Anonymous: load whatever is in localStorage, otherwise start empty.
+      try {
+        const saved = localStorage.getItem("custom-soundscapes");
+        if (cancelled) return;
+        setCustomSoundscapes(saved ? JSON.parse(saved) : []);
+      } catch (error) {
+        console.error("Failed to load custom soundscapes from localStorage:", error);
+        if (!cancelled) setCustomSoundscapes([]);
       }
-    } catch (error) {
-      console.error("Failed to load custom soundscapes from localStorage:", error);
     }
-  }, []);
+
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
 
   const loadBonusSoundscapes = useCallback(async () => {
     try {
@@ -304,6 +388,7 @@ export function useAudioManager() {
     currentSoundscapeId,
     customSoundscapes,
     bonusSoundscapes,
+    unavailableIds,
     volume,
     isPlaying,
     setVolume,

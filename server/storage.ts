@@ -1,11 +1,12 @@
 import { type Soundscape, type InsertSoundscape, type PomodoroSession, type InsertPomodoroSession, soundscapes, pomodoroSessions } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   getSoundscape(id: string): Promise<Soundscape | undefined>;
   getSoundscapes(): Promise<Soundscape[]>;
+  getSoundscapesByOwner(ownerId: string): Promise<Soundscape[]>;
   createSoundscape(soundscape: InsertSoundscape): Promise<Soundscape>;
   
   getPomodoroSession(id: string): Promise<PomodoroSession | undefined>;
@@ -32,6 +33,7 @@ export class MemStorage implements IStorage {
       audioUrl: "@assets/City_Park_in_Spring.-#2-1757109841851_1757110354748.mp3",
       duration: 30,
       isPublic: true,
+      ownerId: null,
       createdAt: new Date()
     };
     
@@ -42,6 +44,7 @@ export class MemStorage implements IStorage {
       audioUrl: "@assets/Distant_Thunderstorm-#1-1757110020986_1757110354747.mp3",
       duration: 30,
       isPublic: true,
+      ownerId: null,
       createdAt: new Date()
     };
     
@@ -52,6 +55,7 @@ export class MemStorage implements IStorage {
       audioUrl: "@assets/Old_school_Jazz_Bar_-#2-1757110326316_1757110354746.mp3",
       duration: 30,
       isPublic: true,
+      ownerId: null,
       createdAt: new Date()
     };
     
@@ -68,6 +72,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.soundscapes.values());
   }
 
+  async getSoundscapesByOwner(ownerId: string): Promise<Soundscape[]> {
+    return Array.from(this.soundscapes.values()).filter(s => s.ownerId === ownerId);
+  }
+
   async createSoundscape(insertSoundscape: InsertSoundscape): Promise<Soundscape> {
     const id = randomUUID();
     const soundscape: Soundscape = { 
@@ -75,6 +83,7 @@ export class MemStorage implements IStorage {
       id,
       duration: insertSoundscape.duration ?? 30,
       isPublic: insertSoundscape.isPublic ?? false,
+      ownerId: insertSoundscape.ownerId ?? null,
       createdAt: new Date() 
     };
     this.soundscapes.set(id, soundscape);
@@ -166,6 +175,15 @@ export class DatabaseStorage implements IStorage {
   async getSoundscapes(): Promise<Soundscape[]> {
     await this.ensureInitialized();
     return await db.select().from(soundscapes);
+  }
+
+  async getSoundscapesByOwner(ownerId: string): Promise<Soundscape[]> {
+    await this.ensureInitialized();
+    return await db
+      .select()
+      .from(soundscapes)
+      .where(eq(soundscapes.ownerId, ownerId))
+      .orderBy(desc(soundscapes.createdAt));
   }
 
   async createSoundscape(insertSoundscape: InsertSoundscape): Promise<Soundscape> {

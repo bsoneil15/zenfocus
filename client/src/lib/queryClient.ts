@@ -17,6 +17,7 @@ async function throwIfResNotOk(res: Response) {
     
     const error = new Error(`${res.status}: ${errorData.message || 'Request failed'}`);
     (error as any).status = res.status;
+    (error as any).data = errorData;
     (error as any).response = { status: res.status, json: () => Promise.resolve(errorData) };
     throw error;
   }

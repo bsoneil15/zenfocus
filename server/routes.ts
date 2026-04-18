@@ -46,7 +46,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/soundscapes", async (req, res) => {
     try {
-      const soundscapes = await storage.getSoundscapes();
+      // Only public soundscapes are exposed on this endpoint. Per-user
+      // soundscapes are returned by /api/soundscapes/mine which requires auth.
+      const all = await storage.getSoundscapes();
+      const soundscapes = all.filter(s => s.isPublic);
       res.json({ soundscapes });
     } catch (error) {
       console.error("Failed to get soundscapes:", error);
@@ -85,12 +88,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name = "Custom Soundscape";
       }
 
+      const ownerId = (req.user as any)?.claims?.sub ?? null;
+
       const soundscape = await storage.createSoundscape({
         name,
         prompt: validatedData.prompt,
         audioUrl: soundResult.audioUrl,
         duration: soundResult.duration,
         isPublic: false,
+        ownerId,
       });
 
       res.json({
@@ -102,18 +108,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Failed to generate soundscape:", error);
-      
+
       if (error instanceof z.ZodError) {
-        res.status(400).json({ 
+        return res.status(400).json({
+          code: "invalid_request",
           message: "Invalid request data",
-          errors: error.errors 
-        });
-      } else {
-        res.status(500).json({ 
-          message: "Failed to generate soundscape",
-          error: error instanceof Error ? error.message : "Unknown error"
+          errors: error.errors,
         });
       }
+
+      const raw = error instanceof Error ? error.message : "Unknown error";
+
+      // Map known ElevenLabs failures to a friendly user-facing message.
+      // ElevenLabs failures bubble up as: "Sound generation failed: ElevenLabs API error: <status> - <body>"
+      const elevenLabsMatch = raw.match(/ElevenLabs API error:\s*(\d+)/i);
+      if (elevenLabsMatch) {
+        const status = parseInt(elevenLabsMatch[1], 10);
+        if (status === 401 || status === 403) {
+          return res.status(502).json({
+            code: "elevenlabs_auth",
+            message: "ElevenLabs rejected the API key. Please check your ELEVENLABS_API_KEY.",
+          });
+        }
+        if (status === 429) {
+          return res.status(429).json({
+            code: "elevenlabs_rate_limited",
+            message: "ElevenLabs is rate-limiting requests. Please try again in a minute.",
+          });
+        }
+        if (status === 422 || status === 400) {
+          return res.status(400).json({
+            code: "elevenlabs_bad_prompt",
+            message: "ElevenLabs couldn't process this prompt. Try rewording it.",
+          });
+        }
+        return res.status(502).json({
+          code: "elevenlabs_error",
+          message: `ElevenLabs returned an error (status ${status}). Please try again.`,
+        });
+      }
+
+      if (/api key/i.test(raw)) {
+        return res.status(503).json({
+          code: "missing_api_key",
+          message: "Sound generation isn't configured on the server (missing API key).",
+        });
+      }
+
+      res.status(500).json({
+        code: "generation_failed",
+        message: "Failed to generate soundscape. Please try again.",
+        detail: raw,
+      });
+    }
+  });
+
+  app.get("/api/soundscapes/mine", isAuthenticated, async (req, res) => {
+    try {
+      const ownerId = (req.user as any)?.claims?.sub;
+      if (!ownerId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const mine = await storage.getSoundscapesByOwner(ownerId);
+      res.json({ soundscapes: mine });
+    } catch (error) {
+      console.error("Failed to get user soundscapes:", error);
+      res.status(500).json({
+        message: "Failed to get your soundscapes",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
   });
 

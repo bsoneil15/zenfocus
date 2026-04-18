@@ -11,6 +11,7 @@ export const soundscapes = pgTable("soundscapes", {
   audioUrl: text("audio_url").notNull(),
   duration: integer("duration").notNull().default(30),
   isPublic: boolean("is_public").notNull().default(false),
+  ownerId: varchar("owner_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

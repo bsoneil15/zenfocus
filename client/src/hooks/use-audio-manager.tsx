@@ -137,20 +137,29 @@ export function useAudioManager() {
   }, [stopCurrentAudio]);
 
   const playPredefinedSoundscape = useCallback(async (type: "rain" | "coffee") => {
-    const filenames: Record<string, string> = {
-      rain: "rainfall_in_a_jungle-1757090030727_1757091361689.mp3",
-      coffee: "coffee_shop_in_nyc,_-#3-1757090374207_1757091361687.mp3",
+    // Preset audio is uploaded to durable object storage at server startup
+    // (see server/preset_audio.ts) and served via the public /objects/...
+    // route. We deliberately do NOT fall back to /attached_assets/ here so
+    // that any production breakage surfaces loudly instead of silently
+    // depending on the ephemeral attached_assets/ folder.
+    const urls: Record<string, string> = {
+      rain: "/objects/soundscape-presets/rain.mp3",
+      coffee: "/objects/soundscape-presets/coffee.mp3",
     };
-    const filename = filenames[type];
-    const audioData = `/attached_assets/${encodeURIComponent(filename)}`;
-    
+    const audioData = urls[type];
+
     try {
       const audioBuffer = await createAudioBuffer(audioData, audioContextRef.current!);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
       console.error(`Failed to load ${type} soundscape:`, error);
+      toast({
+        title: "Couldn't play soundscape",
+        description: `The ${type === "rain" ? "Rain" : "Coffee Shop"} preset failed to load.`,
+        variant: "destructive",
+      });
     }
-  }, [playAudioBuffer]);
+  }, [playAudioBuffer, toast]);
 
   const reportUnavailable = useCallback((soundscape: { id: string; name: string }) => {
     setUnavailableIds(prev => {

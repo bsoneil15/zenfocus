@@ -36,7 +36,7 @@ Preferred communication style: Simple, everyday language.
 - **Audio Context**: Browser-native AudioContext with gain nodes for volume control
 - **Looping**: Custom audio buffer creation and seamless looping implementation
 - **Notifications**: Custom notification sounds generated procedurally
-- **Predefined Sounds**: Rain and Coffee Shop audio served as committed read-only static files under `/attached_assets/` (the legacy `/api/audio/:filename` endpoint was removed and now returns 410 Gone)
+- **Predefined Sounds**: Rain and Coffee Shop audio is uploaded at server startup (`server/preset_audio.ts`) into durable object storage with public ACL and served from `/objects/soundscape-presets/{rain,coffee}.mp3`. The legacy `/api/audio/:filename` endpoint was removed and now returns 410 Gone; the `/attached_assets/` static mount is kept only for any remaining bonus soundscape rows whose `audioUrl` still uses the `@assets/...` prefix.
 - **Bonus Sounds**: City Park, Distant Thunder, Jazz Bar — all available to logged-in users automatically
 - **AI Generated**: Custom soundscapes generated via ElevenLabs API
 

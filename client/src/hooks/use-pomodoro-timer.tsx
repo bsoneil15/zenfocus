@@ -48,6 +48,13 @@ export function usePomodoroTimer() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const onCompleteRef = useRef<(() => void) | null>(null);
   const prevModeRef = useRef<TimerMode>("focus");
+  const currentTimeRef = useRef<number>(state.currentTime);
+
+  // Keep a ref of currentTime in sync so callbacks can read the latest value
+  // without needing to re-create the callback on every tick.
+  useEffect(() => {
+    currentTimeRef.current = state.currentTime;
+  }, [state.currentTime]);
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
@@ -63,13 +70,15 @@ export function usePomodoroTimer() {
   }, []);
 
   const start = useCallback(() => {
+    if (currentTimeRef.current <= 0) return;
+
     setState(prev => {
       if (prev.currentTime <= 0) return prev;
       return { ...prev, isRunning: true, isComplete: false };
     });
-    
+
     if (intervalRef.current) clearInterval(intervalRef.current);
-    
+
     intervalRef.current = setInterval(() => {
       setState(prev => {
         if (!prev.isRunning) {

@@ -58,6 +58,12 @@ export async function incrementDailyUsage(req: Request) {
   return buildUsage(count);
 }
 
+export async function decrementDailyUsage(req: Request) {
+  const key = getDailyLimitKey(req);
+  const count = await storage.decrementDailyUsageCount(key, todayKey());
+  return buildUsage(count);
+}
+
 setInterval(() => {
   storage.cleanupStaleDailyUsage(todayKey()).catch((err) => {
     console.error("Failed to clean up stale daily usage rows:", err);

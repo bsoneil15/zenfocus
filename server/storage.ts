@@ -23,6 +23,7 @@ export interface IStorage {
 
   getDailyUsageCount(key: string, date: string): Promise<number>;
   incrementDailyUsageCount(key: string, date: string): Promise<number>;
+  decrementDailyUsageCount(key: string, date: string): Promise<number>;
   cleanupStaleDailyUsage(currentDate: string): Promise<void>;
 }
 
@@ -142,6 +143,14 @@ export class MemStorage implements IStorage {
   async incrementDailyUsageCount(key: string, date: string): Promise<number> {
     const entry = this.dailyUsage.get(key);
     const next = !entry || entry.date !== date ? { date, count: 1 } : { date, count: entry.count + 1 };
+    this.dailyUsage.set(key, next);
+    return next.count;
+  }
+
+  async decrementDailyUsageCount(key: string, date: string): Promise<number> {
+    const entry = this.dailyUsage.get(key);
+    if (!entry || entry.date !== date) return 0;
+    const next = { date, count: Math.max(0, entry.count - 1) };
     this.dailyUsage.set(key, next);
     return next.count;
   }
@@ -375,6 +384,15 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return row.count;
+  }
+
+  async decrementDailyUsageCount(key: string, date: string): Promise<number> {
+    const [row] = await db
+      .update(dailyUsage)
+      .set({ count: sql`GREATEST(${dailyUsage.count} - 1, 0)` })
+      .where(and(eq(dailyUsage.key, key), eq(dailyUsage.date, date)))
+      .returning();
+    return row?.count ?? 0;
   }
 
   async cleanupStaleDailyUsage(currentDate: string): Promise<void> {

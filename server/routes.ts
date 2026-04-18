@@ -8,8 +8,8 @@ import { generateFocusPrompts, generateSoundscapeName } from "./services/openai"
 import { generateSound } from "./services/elevenlabs";
 import { soundscapeRateLimiter, suggestionsRateLimiter } from "./middleware/rate-limiter";
 import {
-  canGenerate as canGenerateDaily,
   incrementDailyUsage as incrementDailyUsageServer,
+  decrementDailyUsage as decrementDailyUsageServer,
   getDailyUsage as getDailyUsageServer,
   DAILY_SOUNDSCAPE_LIMIT,
 } from "./services/daily-limits";
@@ -94,25 +94,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/soundscapes/generate", soundscapeRateLimiter.middleware(), async (req, res) => {
+    const generateRequestSchema = z.object({
+      prompt: z.string().min(1).max(500),
+      duration: z.number().min(21).max(21).default(21),
+      looping: z.boolean().default(true),
+      promptInfluence: z.number().min(0).max(1).default(0.7),
+    });
+
+    let validatedData: z.infer<typeof generateRequestSchema>;
     try {
-      if (!(await canGenerateDaily(req))) {
-        const usage = await getDailyUsageServer(req);
-        return res.status(429).json({
-          code: "daily_limit_reached",
-          message: `You've reached your daily limit of ${DAILY_SOUNDSCAPE_LIMIT} custom soundscapes. Try again tomorrow!`,
-          ...usage,
+      validatedData = generateRequestSchema.parse(req.body);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          code: "invalid_request",
+          message: "Invalid request data",
+          errors: error.errors,
         });
       }
+      throw error;
+    }
 
-      const generateRequestSchema = z.object({
-        prompt: z.string().min(1).max(500),
-        duration: z.number().min(21).max(21).default(21),
-        looping: z.boolean().default(true),
-        promptInfluence: z.number().min(0).max(1).default(0.7),
+    // Atomically reserve a daily slot before doing any expensive work. If
+    // the increment pushes us over the per-day limit, immediately refund
+    // the slot and reject. This prevents two concurrent requests from both
+    // passing a check-then-increment race and exceeding the quota.
+    let reservedUsage = await incrementDailyUsageServer(req);
+    if (reservedUsage.used > DAILY_SOUNDSCAPE_LIMIT) {
+      await decrementDailyUsageServer(req);
+      const usage = await getDailyUsageServer(req);
+      return res.status(429).json({
+        code: "daily_limit_reached",
+        message: `You've reached your daily limit of ${DAILY_SOUNDSCAPE_LIMIT} custom soundscapes. Try again tomorrow!`,
+        ...usage,
       });
+    }
 
-      const validatedData = generateRequestSchema.parse(req.body);
+    let slotConsumed = true;
+    const refundSlot = async () => {
+      if (!slotConsumed) return;
+      slotConsumed = false;
+      try {
+        await decrementDailyUsageServer(req);
+      } catch (refundErr) {
+        console.error("Failed to refund daily generation slot:", refundErr);
+      }
+    };
 
+    try {
       const soundResult = await generateSound({
         prompt: validatedData.prompt,
         duration: validatedData.duration,
@@ -132,8 +161,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const ownerId = (req.user as any)?.claims?.sub ?? null;
 
-      const dailyUsage = await incrementDailyUsageServer(req);
-
       const soundscape = await storage.createSoundscape({
         name,
         prompt: validatedData.prompt,
@@ -142,6 +169,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isPublic: false,
         ownerId,
       });
+
+      // Slot is now genuinely consumed by a successful create; mark it as
+      // such so the catch block won't refund it.
+      slotConsumed = false;
+
+      const dailyUsage = await getDailyUsageServer(req);
 
       res.json({
         id: soundscape.id,
@@ -152,6 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dailyUsage,
       });
     } catch (error) {
+      await refundSlot();
       console.error("Failed to generate soundscape:", error);
 
       if (error instanceof z.ZodError) {

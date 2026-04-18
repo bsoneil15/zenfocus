@@ -80,8 +80,8 @@ export function AIGeneratorPanel({
     // Check daily limit (server-side enforced; this is just a UX guard)
     if (!canGenerate) {
       toast({
-        title: "Daily Limit Reached",
-        description: `You've reached your daily limit of ${dailyLimit} custom soundscapes. Try again tomorrow!`,
+        title: "You're all out for today",
+        description: `That's your ${dailyLimit} for the day — this little app runs on real API credits, not unlimited magic. Come back tomorrow!`,
         variant: "destructive",
       });
       return;
@@ -152,8 +152,8 @@ export function AIGeneratorPanel({
         }
         queryClient.invalidateQueries({ queryKey: ["/api/soundscapes/daily-limit"] });
         toast({
-          title: "Daily Limit Reached",
-          description: errorData.message || "You've reached your daily limit. Try again tomorrow!",
+          title: "You're all out for today",
+          description: "That's the daily cap — building this cost actual money, so I had to draw the line somewhere. See you tomorrow!",
           variant: "destructive",
         });
         return;
@@ -165,8 +165,8 @@ export function AIGeneratorPanel({
           ? Math.ceil(errorData.retryAfter / (60 * 1000))
           : 'a few';
         toast({
-          title: "Rate Limit Exceeded",
-          description: `Too many soundscape requests. You can make ${errorData.maxRequests || 5} per hour. Try again in ${retryMinutes} minute(s).`,
+          title: "Easy there!",
+          description: `This is a fun side project, not a soundscape factory. Give it ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'} and try again.`,
           variant: "destructive",
         });
         return;
@@ -178,7 +178,7 @@ export function AIGeneratorPanel({
 
       toast({
         title:
-          status === 429 ? "Rate Limit Exceeded" :
+          status === 429 ? "Slow down a little" :
           status === 503 ? "Generation Unavailable" :
           "Couldn't generate soundscape",
         description,
@@ -269,7 +269,17 @@ export function AIGeneratorPanel({
           />
         </div>
         
-        <div className="flex gap-2 sm:gap-3">
+        <div
+          className="flex gap-2 sm:gap-3"
+          onClick={() => {
+            if (isGenerating) {
+              toast({
+                title: "Still on it!",
+                description: "Real AI is doing real work here — just give it a moment.",
+              });
+            }
+          }}
+        >
           <Button
             variant="outline"
             className="flex-1 transition-colors active:scale-95 text-xs sm:text-sm py-2 sm:py-3"

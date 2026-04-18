@@ -42,8 +42,18 @@ app.use((req, res, next) => {
   await setupAuth(app);
   registerAuthRoutes(app);
   const server = await registerRoutes(app);
-  
-  app.use('/attached_assets', express.static(path.resolve(import.meta.dirname, '..', 'attached_assets')));
+
+  // Read-only static mount kept solely so the hardcoded Rain/Coffee preset
+  // soundscapes (and any bonus soundscape with an `@assets/...` audioUrl)
+  // can still be fetched directly from the bundled attached_assets/ folder.
+  // The legacy GET /api/audio/:filename endpoint that used to serve these
+  // files has been removed (it now returns 410 Gone). This mount only
+  // serves files that are committed to the repo; nothing writes to this
+  // directory at runtime.
+  app.use(
+    "/attached_assets",
+    express.static(path.resolve(import.meta.dirname, "..", "attached_assets"))
+  );
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

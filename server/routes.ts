@@ -1,8 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
-import path from "path";
-import fs from "fs";
 import { storage } from "./storage";
 import { insertSoundscapeSchema } from "@shared/schema";
 import { isAuthenticated } from "./replit_integrations/auth";
@@ -327,54 +325,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/audio/:filename", (req, res) => {
-    try {
-      const filename = decodeURIComponent(req.params.filename);
-      const filePath = path.resolve(import.meta.dirname, '..', 'attached_assets', filename);
-      
-      console.log('Audio file request:', {
-        originalParam: req.params.filename,
-        decodedFilename: filename,
-        resolvedPath: filePath
-      });
-      
-      const assetsPath = path.resolve(import.meta.dirname, '..', 'attached_assets');
-      if (!filePath.startsWith(assetsPath)) {
-        console.error('Security violation: attempted to access file outside assets:', filename);
-        return res.status(403).json({ message: 'Access denied' });
-      }
-      
-      if (!fs.existsSync(filePath)) {
-        console.error('Audio file not found:', filename, 'at path:', filePath);
-        return res.status(404).json({ message: 'Audio file not found', filename });
-      }
-      
-      res.set({
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET',
-        'Access-Control-Allow-Headers': 'Content-Type, Cache-Control, Pragma, Expires',
-        'Content-Type': 'audio/mpeg',
-        'Accept-Ranges': 'bytes',
-        'Cache-Control': 'public, max-age=31536000',
-        'Access-Control-Max-Age': '3600'
-      });
-      
-      res.sendFile(filePath, (err) => {
-        if (err) {
-          console.error('Error serving audio file:', err);
-          if (!res.headersSent) {
-            res.status((err as any).status || 500).end();
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Unexpected error in audio endpoint:', error);
-      if (!res.headersSent) {
-        res.status(500).json({ message: 'Internal server error' });
-      }
-    }
+  // The legacy GET /api/audio/:filename endpoint that served MP3s out of the
+  // ephemeral attached_assets/ directory has been removed. Saved soundscapes
+  // are now served from object storage via /objects/...; we respond 410 Gone
+  // so any stale clients fail loudly instead of silently regressing back to
+  // writing into the ephemeral folder.
+  app.all("/api/audio/:filename", (_req, res) => {
+    res.status(410).json({
+      message: "This endpoint has been removed. Soundscape audio is now served from /objects/...",
+    });
   });
-  
+
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 

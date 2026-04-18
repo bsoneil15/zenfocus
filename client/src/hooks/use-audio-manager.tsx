@@ -142,7 +142,7 @@ export function useAudioManager() {
       coffee: "coffee_shop_in_nyc,_-#3-1757090374207_1757091361687.mp3",
     };
     const filename = filenames[type];
-    const audioData = `/api/audio/${encodeURIComponent(filename)}`;
+    const audioData = `/attached_assets/${encodeURIComponent(filename)}`;
     
     try {
       const audioBuffer = await createAudioBuffer(audioData, audioContextRef.current!);
@@ -206,7 +206,7 @@ export function useAudioManager() {
       let audioUrl = soundscape.audioUrl;
       if (audioUrl.startsWith('@assets/')) {
         const filename = audioUrl.replace('@assets/', '');
-        audioUrl = `/api/audio/${encodeURIComponent(filename)}`;
+        audioUrl = `/attached_assets/${encodeURIComponent(filename)}`;
       }
       
       console.log('Attempting to play bonus soundscape from URL:', audioUrl);

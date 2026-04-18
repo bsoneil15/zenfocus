@@ -1,7 +1,14 @@
 import { type Soundscape, type InsertSoundscape, type PomodoroSession, type InsertPomodoroSession, soundscapes, pomodoroSessions } from "@shared/schema";
 import { randomUUID } from "crypto";
+import fs from "fs";
+import path from "path";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
+import {
+  ObjectStorageService,
+  objectStorageClient,
+  setObjectAclPolicy,
+} from "./replit_integrations/object_storage";
 
 export interface IStorage {
   getSoundscape(id: string): Promise<Soundscape | undefined>;
@@ -122,10 +129,92 @@ export class DatabaseStorage implements IStorage {
     try {
       await this.initializeDefaultData();
       this.initialized = true;
+      // Fire-and-forget: migrate any legacy /api/audio/* rows whose files
+      // still exist on disk into durable object storage. We don't block
+      // initialization on this because it's a one-time best-effort backfill.
+      this.migrateLegacyAudioToObjectStorage().catch((err) => {
+        console.error("Legacy audio migration failed:", err);
+      });
     } catch (error) {
       console.error("Failed to initialize database storage:", error);
       throw error;
     }
+  }
+
+  // Backfill: previously generated MP3s were written to attached_assets/
+  // and referenced as /api/audio/<filename> or /audio/<filename>. The
+  // attached_assets/ directory is wiped on container rebuild, so any rows
+  // still pointing there will break after a redeploy. Move the files that
+  // are still present into object storage and rewrite the URLs.
+  private async migrateLegacyAudioToObjectStorage() {
+    const rows = await db.select().from(soundscapes);
+    const legacy = rows.filter((s) =>
+      /^\/(api\/)?audio\/.+\.mp3$/i.test(s.audioUrl)
+    );
+    if (legacy.length === 0) return;
+
+    const assetsDir = path.resolve(import.meta.dirname, "..", "attached_assets");
+    const objectStorage = new ObjectStorageService();
+    let privateDir: string;
+    try {
+      privateDir = objectStorage.getPrivateObjectDir();
+    } catch (err) {
+      console.warn(
+        "Skipping legacy audio migration: object storage not configured.",
+        err
+      );
+      return;
+    }
+    if (!privateDir.endsWith("/")) privateDir = `${privateDir}/`;
+
+    let migrated = 0;
+    let missing = 0;
+    for (const row of legacy) {
+      const filename = row.audioUrl.replace(/^\/(api\/)?audio\//i, "");
+      const localPath = path.join(assetsDir, filename);
+      if (!localPath.startsWith(assetsDir)) {
+        console.warn("Skipping suspicious legacy audio path:", row.audioUrl);
+        continue;
+      }
+      if (!fs.existsSync(localPath)) {
+        missing++;
+        continue;
+      }
+      try {
+        const buf = fs.readFileSync(localPath);
+        const fullPath = `${privateDir}soundscapes/${filename}`;
+        const stripped = fullPath.startsWith("/") ? fullPath.slice(1) : fullPath;
+        const slash = stripped.indexOf("/");
+        const bucketName = stripped.slice(0, slash);
+        const objectName = stripped.slice(slash + 1);
+        const file = objectStorageClient.bucket(bucketName).file(objectName);
+        const [exists] = await file.exists();
+        if (!exists) {
+          await file.save(buf, {
+            contentType: "audio/mpeg",
+            resumable: false,
+          });
+        }
+        await setObjectAclPolicy(file, {
+          owner: row.ownerId ?? "system",
+          visibility: "public",
+        });
+        const newUrl = `/objects/soundscapes/${filename}`;
+        await db
+          .update(soundscapes)
+          .set({ audioUrl: newUrl })
+          .where(eq(soundscapes.id, row.id));
+        migrated++;
+      } catch (err) {
+        console.error(
+          `Failed to migrate legacy audio for soundscape ${row.id} (${row.audioUrl}):`,
+          err
+        );
+      }
+    }
+    console.log(
+      `Legacy audio migration complete: migrated=${migrated}, missing=${missing}, total=${legacy.length}`
+    );
   }
 
   private async initializeDefaultData() {

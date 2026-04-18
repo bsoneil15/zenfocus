@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Headphones, Settings, Moon, Sun, LogOut } from "lucide-react";
+import { Headphones, Settings, Moon, Sun, LogOut, Volume2, VolumeX } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePomodoroTimer } from "@/hooks/use-pomodoro-timer";
@@ -27,6 +28,9 @@ export default function PomodoroPage() {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
+  const isMobile = useIsMobile();
+  const [audioReadyDismissed, setAudioReadyDismissed] = useState(false);
+  const [hasShownAudioReady, setHasShownAudioReady] = useState(false);
   
   const {
     state: timerState,
@@ -55,6 +59,8 @@ export default function PomodoroPage() {
     addCustomSoundscape,
     deleteCustomSoundscape,
     playNotificationSound,
+    audioUnlocked,
+    unlockAudio,
   } = useAudioManager();
 
   const {
@@ -125,6 +131,13 @@ export default function PomodoroPage() {
     toast,
     switchMode,
   ]);
+
+  useEffect(() => {
+    if (!audioUnlocked || hasShownAudioReady) return;
+    setHasShownAudioReady(true);
+    const t = setTimeout(() => setAudioReadyDismissed(true), 3000);
+    return () => clearTimeout(t);
+  }, [audioUnlocked, hasShownAudioReady]);
 
   useEffect(() => {
     try {
@@ -242,6 +255,35 @@ export default function PomodoroPage() {
           </Button>
         </div>
       </header>
+      {isMobile && !audioUnlocked && (
+        <button
+          type="button"
+          onClick={async () => {
+            const ok = await unlockAudio();
+            if (!ok) {
+              toast({
+                title: "Couldn't enable audio",
+                description: "Your browser blocked the request. Try tapping again.",
+                variant: "destructive",
+              });
+            }
+          }}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          data-testid="button-enable-audio"
+        >
+          <VolumeX className="h-4 w-4" />
+          Tap to enable audio
+        </button>
+      )}
+      {isMobile && audioUnlocked && hasShownAudioReady && !audioReadyDismissed && (
+        <div
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/50 border-b border-border"
+          data-testid="banner-audio-ready"
+        >
+          <Volume2 className="h-3 w-3" />
+          Audio ready
+        </div>
+      )}
       <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 relative">
         <TimerDisplay
           time={getFormattedTime()}

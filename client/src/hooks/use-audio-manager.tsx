@@ -30,7 +30,25 @@ export function useAudioManager() {
   const [unavailableIds, setUnavailableIds] = useState<Set<string>>(new Set());
   const [volume, setVolume] = useState(0.3);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const reportedMissingRef = useRef<Set<string>>(new Set());
+
+  const isMobileViewport = () => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia?.("(max-width: 767px)").matches ?? false;
+  };
+  const reportLockedAudio = (soundscapeName?: string) => {
+    setAudioUnlocked(false);
+    if (!isMobileViewport()) {
+      toast({
+        title: "Tap to enable audio",
+        description: soundscapeName
+          ? `Click anywhere on the page, then try playing "${soundscapeName}" again.`
+          : "Click anywhere on the page, then try again — your browser is blocking audio until you interact with it.",
+        variant: "destructive",
+      });
+    }
+  };
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -61,12 +79,32 @@ export function useAudioManager() {
       gain.gain.value = volumeRef.current;
       audioContextRef.current = ctx;
       gainNodeRef.current = gain;
+      const syncUnlocked = () => setAudioUnlocked(ctx.state === "running");
+      syncUnlocked();
+      ctx.addEventListener?.("statechange", syncUnlocked);
       return ctx;
     } catch (error) {
       console.error("Failed to initialize audio context:", error);
       return null;
     }
   }, []);
+
+  // Explicit one-tap unlock for the "Enable audio" prompt. Returns true once
+  // the AudioContext is in the "running" state.
+  const unlockAudio = useCallback(async (): Promise<boolean> => {
+    const ctx = ensureAudioContext();
+    if (!ctx) return false;
+    if (ctx.state === "suspended") {
+      try {
+        await ctx.resume();
+      } catch (err) {
+        console.error("Manual audio unlock failed:", err);
+      }
+    }
+    const running = ctx.state === "running";
+    setAudioUnlocked(running);
+    return running;
+  }, [ensureAudioContext]);
 
   // Global one-shot unlock: on the very first user interaction anywhere on
   // the page, create + resume the AudioContext so subsequent async play
@@ -85,7 +123,11 @@ export function useAudioManager() {
       cleanup();
       const ctx = ensureAudioContext();
       if (ctx && ctx.state === "suspended") {
-        ctx.resume().catch(err => console.error("Initial audio unlock failed:", err));
+        ctx.resume()
+          .then(() => setAudioUnlocked(ctx.state === "running"))
+          .catch(err => console.error("Initial audio unlock failed:", err));
+      } else if (ctx && ctx.state === "running") {
+        setAudioUnlocked(true);
       }
     }
     for (const evt of events) window.addEventListener(evt, unlock, opts);
@@ -203,13 +245,15 @@ export function useAudioManager() {
     } catch (error) {
       console.error(`Failed to load ${type} soundscape:`, error);
       const message = error instanceof Error ? error.message : String(error);
-      toast({
-        title: "Couldn't play soundscape",
-        description: /tap|interact|browser is blocking/i.test(message)
-          ? message
-          : `The ${type === "rain" ? "Rain" : "Coffee Shop"} preset failed to load.`,
-        variant: "destructive",
-      });
+      if (/tap|interact|browser is blocking|isn't ready/i.test(message)) {
+        reportLockedAudio(type === "rain" ? "Rain" : "Coffee Shop");
+      } else {
+        toast({
+          title: "Couldn't play soundscape",
+          description: `The ${type === "rain" ? "Rain" : "Coffee Shop"} preset failed to load.`,
+          variant: "destructive",
+        });
+      }
     }
   }, [ensureAudioContext, playAudioBuffer, toast]);
 
@@ -249,12 +293,10 @@ export function useAudioManager() {
       const message = error instanceof Error ? error.message : String(error);
       if (/404|not found/i.test(message)) {
         reportUnavailable(soundscape);
-      } else if (/tap|interact|browser is blocking/i.test(message)) {
-        toast({
-          title: "Tap to enable audio",
-          description: message,
-          variant: "destructive",
-        });
+      } else if (/tap|interact|browser is blocking|isn't ready/i.test(message)) {
+        // Locked audio — surfaced via the persistent "Enable audio" banner
+        // on mobile, or a fallback toast on desktop.
+        reportLockedAudio(soundscape.name);
       } else {
         toast({
           title: "Couldn't play soundscape",
@@ -285,12 +327,8 @@ export function useAudioManager() {
       const message = error instanceof Error ? error.message : String(error);
       if (/404|not found/i.test(message)) {
         reportUnavailable(soundscape);
-      } else if (/tap|interact|browser is blocking/i.test(message)) {
-        toast({
-          title: "Tap to enable audio",
-          description: message,
-          variant: "destructive",
-        });
+      } else if (/tap|interact|browser is blocking|isn't ready/i.test(message)) {
+        reportLockedAudio(soundscape.name);
       } else {
         toast({
           title: "Couldn't play soundscape",
@@ -315,7 +353,11 @@ export function useAudioManager() {
     // iOS this is the difference between audio playing and silently failing.
     const ctx = ensureAudioContext();
     if (ctx && ctx.state === "suspended") {
-      ctx.resume().catch(err => console.error("Audio context resume failed:", err));
+      ctx.resume()
+        .then(() => setAudioUnlocked(ctx.state === "running"))
+        .catch(err => console.error("Audio context resume failed:", err));
+    } else if (ctx && ctx.state === "running") {
+      setAudioUnlocked(true);
     }
 
     if (type === "rain" || type === "coffee") {
@@ -520,8 +562,10 @@ export function useAudioManager() {
     unavailableIds,
     volume,
     isPlaying,
+    audioUnlocked,
     setVolume,
     setSoundscape,
+    unlockAudio,
     addCustomSoundscape,
     deleteCustomSoundscape,
     playNotificationSound,

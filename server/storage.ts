@@ -44,7 +44,7 @@ export class MemStorage implements IStorage {
       id: "city-park",
       name: "City park",
       prompt: "Peaceful city park with birds chirping and gentle breeze",
-      audioUrl: "@assets/City_Park_in_Spring.-#2-1757109841851_1757110354748.mp3",
+      audioUrl: "/objects/soundscape-presets/city-park.mp3",
       duration: 30,
       isPublic: true,
       ownerId: null,
@@ -55,7 +55,7 @@ export class MemStorage implements IStorage {
       id: "distant-thunder",
       name: "Distant thunder",
       prompt: "Distant thunderstorm with gentle rain and rolling thunder",
-      audioUrl: "@assets/Distant_Thunderstorm-#1-1757110020986_1757110354747.mp3",
+      audioUrl: "/objects/soundscape-presets/distant-thunder.mp3",
       duration: 30,
       isPublic: true,
       ownerId: null,
@@ -66,7 +66,7 @@ export class MemStorage implements IStorage {
       id: "jazz-bar",
       name: "Jazz bar",
       prompt: "Cozy jazz bar atmosphere with smooth background music",
-      audioUrl: "@assets/Old_school_Jazz_Bar_-#2-1757110326316_1757110354746.mp3",
+      audioUrl: "/objects/soundscape-presets/jazz-bar.mp3",
       duration: 30,
       isPublic: true,
       ownerId: null,
@@ -254,36 +254,45 @@ export class DatabaseStorage implements IStorage {
 
   private async initializeDefaultData() {
     try {
-      const existingSoundscapes = await db.select().from(soundscapes);
-      if (existingSoundscapes.some(s => s.id === "city-park")) return;
+      // Use onConflictDoUpdate so that any existing rows still carrying the
+      // legacy "@assets/..." URL get corrected to the durable /objects/ path.
+      const bonusDefaults = [
+        {
+          id: "city-park",
+          name: "City park",
+          prompt: "Peaceful city park with birds chirping and gentle breeze",
+          audioUrl: "/objects/soundscape-presets/city-park.mp3",
+          duration: 30,
+          isPublic: true,
+        },
+        {
+          id: "distant-thunder",
+          name: "Distant thunder",
+          prompt: "Distant thunderstorm with gentle rain and rolling thunder",
+          audioUrl: "/objects/soundscape-presets/distant-thunder.mp3",
+          duration: 30,
+          isPublic: true,
+        },
+        {
+          id: "jazz-bar",
+          name: "Jazz bar",
+          prompt: "Cozy jazz bar atmosphere with smooth background music",
+          audioUrl: "/objects/soundscape-presets/jazz-bar.mp3",
+          duration: 30,
+          isPublic: true,
+        },
+      ];
 
-      await db.insert(soundscapes).values({
-        id: "city-park",
-        name: "City park",
-        prompt: "Peaceful city park with birds chirping and gentle breeze",
-        audioUrl: "@assets/City_Park_in_Spring.-#2-1757109841851_1757110354748.mp3",
-        duration: 30,
-        isPublic: true,
-      }).onConflictDoNothing();
+      for (const row of bonusDefaults) {
+        await db
+          .insert(soundscapes)
+          .values(row)
+          .onConflictDoUpdate({
+            target: soundscapes.id,
+            set: { audioUrl: row.audioUrl },
+          });
+      }
 
-      await db.insert(soundscapes).values({
-        id: "distant-thunder",
-        name: "Distant thunder",
-        prompt: "Distant thunderstorm with gentle rain and rolling thunder",
-        audioUrl: "@assets/Distant_Thunderstorm-#1-1757110020986_1757110354747.mp3",
-        duration: 30,
-        isPublic: true,
-      }).onConflictDoNothing();
-
-      await db.insert(soundscapes).values({
-        id: "jazz-bar",
-        name: "Jazz bar",
-        prompt: "Cozy jazz bar atmosphere with smooth background music",
-        audioUrl: "@assets/Old_school_Jazz_Bar_-#2-1757110326316_1757110354746.mp3",
-        duration: 30,
-        isPublic: true,
-      }).onConflictDoNothing();
-      
       console.log("Default soundscapes initialized");
     } catch (error) {
       console.error("Failed to initialize default data:", error);

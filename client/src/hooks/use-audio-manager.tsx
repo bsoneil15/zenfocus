@@ -212,12 +212,7 @@ export function useAudioManager() {
         throw new Error('Audio context not initialized');
       }
       
-      let audioUrl = soundscape.audioUrl;
-      if (audioUrl.startsWith('@assets/')) {
-        const filename = audioUrl.replace('@assets/', '');
-        audioUrl = `/attached_assets/${encodeURIComponent(filename)}`;
-      }
-      
+      const audioUrl = soundscape.audioUrl;
       console.log('Attempting to play bonus soundscape from URL:', audioUrl);
       const audioBuffer = await createAudioBuffer(audioUrl, audioContextRef.current);
       await playAudioBuffer(audioBuffer);

@@ -26,6 +26,24 @@ export const PRESET_AUDIOS: PresetAudio[] = [
     objectName: "soundscape-presets/coffee.mp3",
     publicUrl: "/objects/soundscape-presets/coffee.mp3",
   },
+  {
+    key: "city-park",
+    filename: "City_Park_in_Spring.-#2-1757109841851_1757110354748.mp3",
+    objectName: "soundscape-presets/city-park.mp3",
+    publicUrl: "/objects/soundscape-presets/city-park.mp3",
+  },
+  {
+    key: "distant-thunder",
+    filename: "Distant_Thunderstorm-#1-1757110020986_1757110354747.mp3",
+    objectName: "soundscape-presets/distant-thunder.mp3",
+    publicUrl: "/objects/soundscape-presets/distant-thunder.mp3",
+  },
+  {
+    key: "jazz-bar",
+    filename: "Old_school_Jazz_Bar_-#2-1757110326316_1757110354746.mp3",
+    objectName: "soundscape-presets/jazz-bar.mp3",
+    publicUrl: "/objects/soundscape-presets/jazz-bar.mp3",
+  },
 ];
 
 let uploadPromise: Promise<void> | null = null;

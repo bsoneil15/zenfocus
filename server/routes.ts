@@ -51,6 +51,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/soundscapes/hourly-limit", (req, res) => {
+    const status = soundscapeRateLimiter.getStatus(req);
+    const now = Date.now();
+    const remainingMs = status.resetTime.getTime() - now;
+    const resetInMinutes = Math.max(0, Math.ceil(remainingMs / (60 * 1000)));
+    res.json({
+      used: status.count,
+      remaining: Math.max(0, status.maxRequests - status.count),
+      limit: status.maxRequests,
+      resetInMinutes,
+    });
+  });
+
   app.get("/api/soundscapes/suggestions", suggestionsRateLimiter.middleware(), async (req, res) => {
     try {
       const suggestions = await generateFocusPrompts();

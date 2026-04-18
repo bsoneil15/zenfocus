@@ -134,12 +134,13 @@ class RateLimiter {
   public getStatus(req: Request): { count: number; maxRequests: number; resetTime: Date } {
     const key = this.getClientKey(req);
     const entry = this.store.get(key);
+    const now = Date.now();
     
-    if (!entry) {
+    if (!entry || now - entry.windowStart >= this.windowMs) {
       return {
         count: 0,
         maxRequests: this.maxRequests,
-        resetTime: new Date(Date.now() + this.windowMs)
+        resetTime: new Date(now + this.windowMs)
       };
     }
 

@@ -13,6 +13,13 @@ interface DailyUsage {
   limit: number;
 }
 
+interface HourlyUsage {
+  used: number;
+  remaining: number;
+  limit: number;
+  resetInMinutes: number;
+}
+
 interface AIGeneratorPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -42,9 +49,16 @@ export function AIGeneratorPanel({
     enabled: isOpen,
   });
 
+  const { data: hourlyUsage, isLoading: isLoadingHourly } = useQuery<HourlyUsage>({
+    queryKey: ["/api/soundscapes/hourly-limit"],
+    enabled: isOpen,
+  });
+
   const remainingGenerations = dailyUsage?.remaining ?? 0;
   const dailyLimit = dailyUsage?.limit ?? 3;
-  const canGenerate = (dailyUsage?.remaining ?? 0) > 0;
+  const hourlyRemaining = hourlyUsage?.remaining ?? 5;
+  const hourlyLimit = hourlyUsage?.limit ?? 5;
+  const canGenerate = (dailyUsage?.remaining ?? 0) > 0 && (hourlyUsage?.remaining ?? 5) > 0;
 
   const loadSuggestions = useCallback(async () => {
     setIsLoadingSuggestions(true);
@@ -78,13 +92,24 @@ export function AIGeneratorPanel({
       return;
     }
 
-    // Check daily limit (server-side enforced; this is just a UX guard)
+    // Check limits (server-side enforced; this is just a UX guard)
     if (!canGenerate) {
-      toast({
-        title: "You're all out for today",
-        description: `That's your ${dailyLimit} for the day — this little app runs on real API credits, not unlimited magic. Come back tomorrow!`,
-        variant: "destructive",
-      });
+      const hourlyExhausted = (hourlyUsage?.remaining ?? 5) <= 0;
+      const dailyExhausted = (dailyUsage?.remaining ?? 0) <= 0;
+      if (hourlyExhausted && !dailyExhausted) {
+        const resetIn = hourlyUsage?.resetInMinutes ?? 'a few';
+        toast({
+          title: "Hourly limit reached",
+          description: `You've used all ${hourlyLimit} hourly generations. Try again in ${resetIn} minute${resetIn === 1 ? '' : 's'}.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "You're all out for today",
+          description: `That's your ${dailyLimit} for the day — this little app runs on real API credits, not unlimited magic. Come back tomorrow!`,
+          variant: "destructive",
+        });
+      }
       return;
     }
 
@@ -187,6 +212,7 @@ export function AIGeneratorPanel({
       });
     } finally {
       setIsGenerating(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/soundscapes/hourly-limit"] });
     }
   };
 
@@ -217,16 +243,27 @@ export function AIGeneratorPanel({
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">
           Generate custom focus soundscapes using AI
         </p>
-        <div className="flex items-center justify-center mb-4 sm:mb-6">
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-4 sm:mb-6">
           <div className={`text-xs px-3 py-1 rounded-full text-center ${
-            canGenerate ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
+            remainingGenerations > 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
                         : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
           }`}>
             {isLoadingUsage
-              ? 'Checking remaining generations...'
+              ? 'Checking...'
               : remainingGenerations > 0
-                ? `${remainingGenerations} generations remaining today`
+                ? `${remainingGenerations} of ${dailyLimit} daily uses left`
                 : 'Daily limit reached (resets tomorrow)'}
+          </div>
+          <div className={`text-xs px-3 py-1 rounded-full text-center ${
+            isLoadingHourly ? 'bg-muted text-muted-foreground'
+            : hourlyRemaining > 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                  : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+          }`}>
+            {isLoadingHourly
+              ? 'Checking...'
+              : hourlyRemaining > 0
+                ? `${hourlyRemaining} of ${hourlyLimit} hourly uses left`
+                : `Hourly limit reached (resets in ${hourlyUsage?.resetInMinutes ?? '?'} min)`}
           </div>
         </div>
         

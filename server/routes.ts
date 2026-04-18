@@ -10,6 +10,12 @@ import { generateFocusPrompts, generateSoundscapeName } from "./services/openai"
 import { generateSound } from "./services/elevenlabs";
 import { soundscapeRateLimiter, suggestionsRateLimiter } from "./middleware/rate-limiter";
 import {
+  canGenerate as canGenerateDaily,
+  incrementDailyUsage as incrementDailyUsageServer,
+  getDailyUsage as getDailyUsageServer,
+  DAILY_SOUNDSCAPE_LIMIT,
+} from "./services/daily-limits";
+import {
   ObjectStorageService,
   ObjectNotFoundError,
   ObjectPermission,
@@ -35,6 +41,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resetTime: suggestionsStatus.resetTime
       }
     });
+  });
+
+  app.get("/api/soundscapes/daily-limit", (req, res) => {
+    const usage = getDailyUsageServer(req);
+    res.json(usage);
   });
 
   app.get("/api/soundscapes/suggestions", suggestionsRateLimiter.middleware(), async (req, res) => {
@@ -68,6 +79,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/soundscapes/generate", soundscapeRateLimiter.middleware(), async (req, res) => {
     try {
+      if (!canGenerateDaily(req)) {
+        const usage = getDailyUsageServer(req);
+        return res.status(429).json({
+          code: "daily_limit_reached",
+          message: `You've reached your daily limit of ${DAILY_SOUNDSCAPE_LIMIT} custom soundscapes. Try again tomorrow!`,
+          ...usage,
+        });
+      }
+
       const generateRequestSchema = z.object({
         prompt: z.string().min(1).max(500),
         duration: z.number().min(21).max(21).default(21),
@@ -96,6 +116,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const ownerId = (req.user as any)?.claims?.sub ?? null;
 
+      const dailyUsage = incrementDailyUsageServer(req);
+
       const soundscape = await storage.createSoundscape({
         name,
         prompt: validatedData.prompt,
@@ -111,6 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         audioUrl: soundscape.audioUrl,
         prompt: soundscape.prompt,
         duration: soundscape.duration,
+        dailyUsage,
       });
     } catch (error) {
       console.error("Failed to generate soundscape:", error);

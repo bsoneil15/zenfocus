@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { canGenerateToday, incrementDailyUsage, getRemainingGenerations } from "@/lib/daily-limits";
+
+interface DailyUsage {
+  used: number;
+  remaining: number;
+  limit: number;
+}
 
 interface AIGeneratorPanelProps {
   isOpen: boolean;
@@ -28,9 +34,16 @@ export function AIGeneratorPanel({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const { toast } = useToast();
-  
-  const remainingGenerations = getRemainingGenerations();
-  const canGenerate = canGenerateToday();
+  const queryClient = useQueryClient();
+
+  const { data: dailyUsage, isLoading: isLoadingUsage } = useQuery<DailyUsage>({
+    queryKey: ["/api/soundscapes/daily-limit"],
+    enabled: isOpen,
+  });
+
+  const remainingGenerations = dailyUsage?.remaining ?? 0;
+  const dailyLimit = dailyUsage?.limit ?? 3;
+  const canGenerate = (dailyUsage?.remaining ?? 0) > 0;
 
   const loadSuggestions = useCallback(async () => {
     setIsLoadingSuggestions(true);
@@ -64,11 +77,11 @@ export function AIGeneratorPanel({
       return;
     }
 
-    // Check daily limit
-    if (!canGenerateToday()) {
+    // Check daily limit (server-side enforced; this is just a UX guard)
+    if (!canGenerate) {
       toast({
         title: "Daily Limit Reached",
-        description: "You've reached your daily limit of 3 custom soundscapes. Try again tomorrow!",
+        description: `You've reached your daily limit of ${dailyLimit} custom soundscapes. Try again tomorrow!`,
         variant: "destructive",
       });
       return;
@@ -90,22 +103,25 @@ export function AIGeneratorPanel({
       });
       
       const data = await response.json();
-      
-      // Increment daily usage count
-      incrementDailyUsage();
-      
+
+      // Update daily usage cache from server response, then refetch to be safe
+      if (data.dailyUsage) {
+        queryClient.setQueryData(["/api/soundscapes/daily-limit"], data.dailyUsage);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/soundscapes/daily-limit"] });
+
       onSoundscapeGenerated({
         id: data.id,
         name: data.name,
         audioUrl: data.audioUrl,
         prompt: customPrompt.trim(),
       });
-      
+
       loadingToast.dismiss();
-      const remaining = getRemainingGenerations();
+      const remaining = data.dailyUsage?.remaining ?? 0;
       toast({
         title: "Success",
-        description: remaining > 0 
+        description: remaining > 0
           ? `Custom soundscape generated successfully! ${remaining} generations remaining today.`
           : "Custom soundscape generated successfully! Daily limit reached.",
       });
@@ -124,6 +140,24 @@ export function AIGeneratorPanel({
 
       const errorData = error?.data ?? {};
       const status = error?.status;
+
+      // Server-enforced per-account/IP daily limit
+      if (status === 429 && errorData.code === "daily_limit_reached") {
+        if (errorData.remaining !== undefined && errorData.limit !== undefined) {
+          queryClient.setQueryData(["/api/soundscapes/daily-limit"], {
+            used: errorData.used,
+            remaining: errorData.remaining,
+            limit: errorData.limit,
+          });
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/soundscapes/daily-limit"] });
+        toast({
+          title: "Daily Limit Reached",
+          description: errorData.message || "You've reached your daily limit. Try again tomorrow!",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Local rate-limit middleware (per-IP) returns retryAfter/maxRequests
       if (status === 429 && errorData.retryAfter !== undefined) {
@@ -187,10 +221,11 @@ export function AIGeneratorPanel({
             canGenerate ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
                         : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
           }`}>
-            {remainingGenerations > 0 
-              ? `${remainingGenerations} generations remaining today`
-              : 'Daily limit reached (resets tomorrow)'
-            }
+            {isLoadingUsage
+              ? 'Checking remaining generations...'
+              : remainingGenerations > 0
+                ? `${remainingGenerations} generations remaining today`
+                : 'Daily limit reached (resets tomorrow)'}
           </div>
         </div>
         
@@ -247,7 +282,7 @@ export function AIGeneratorPanel({
           <Button
             className="flex-1 transition-colors active:scale-95 text-xs sm:text-sm py-2 sm:py-3"
             onClick={generateSoundscape}
-            disabled={isGenerating || !customPrompt.trim() || !canGenerate}
+            disabled={isGenerating || !customPrompt.trim() || !canGenerate || isLoadingUsage}
             data-testid="button-generate-soundscape"
           >
             {isGenerating ? (

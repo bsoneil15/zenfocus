@@ -12,6 +12,7 @@ import { soundscapeRateLimiter, suggestionsRateLimiter } from "./middleware/rate
 import {
   ObjectStorageService,
   ObjectNotFoundError,
+  ObjectPermission,
   canAccessObject,
 } from "./replit_integrations/object_storage";
 
@@ -326,7 +327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allowed = await canAccessObject({
         objectFile,
         userId,
-        requestedPermission: "read" as any,
+        requestedPermission: ObjectPermission.READ,
       });
       if (!allowed) {
         return res.status(404).json({ message: "Object not found" });

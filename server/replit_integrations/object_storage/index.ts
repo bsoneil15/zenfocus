@@ -12,10 +12,9 @@ export type {
 } from "./objectAcl";
 
 export {
+  ObjectPermission,
   canAccessObject,
   getObjectAclPolicy,
   setObjectAclPolicy,
 } from "./objectAcl";
-
-export { registerObjectStorageRoutes } from "./routes";
 

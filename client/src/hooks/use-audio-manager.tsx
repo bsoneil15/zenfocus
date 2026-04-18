@@ -35,24 +35,67 @@ export function useAudioManager() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const volumeRef = useRef(volume);
 
   useEffect(() => {
-    const initAudioContext = async () => {
-      try {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        gainNodeRef.current = audioContextRef.current.createGain();
-        gainNodeRef.current.connect(audioContextRef.current.destination);
-        gainNodeRef.current.gain.value = volume;
-      } catch (error) {
-        console.error("Failed to initialize audio context:", error);
+    volumeRef.current = volume;
+  }, [volume]);
+
+  // Lazily create the AudioContext. iOS Safari refuses to leave the
+  // "suspended" state for a context that was constructed without a user
+  // gesture, so we MUST defer creation until a tap/click actually happens.
+  // Returns the live context (or null if construction failed).
+  const ensureAudioContext = useCallback((): AudioContext | null => {
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      return audioContextRef.current;
+    }
+    try {
+      const Ctor = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+      if (!Ctor) {
+        console.error("Web Audio API is not supported in this browser");
+        return null;
       }
+      const ctx = new Ctor();
+      const gain = ctx.createGain();
+      gain.connect(ctx.destination);
+      gain.gain.value = volumeRef.current;
+      audioContextRef.current = ctx;
+      gainNodeRef.current = gain;
+      return ctx;
+    } catch (error) {
+      console.error("Failed to initialize audio context:", error);
+      return null;
+    }
+  }, []);
+
+  // Global one-shot unlock: on the very first user interaction anywhere on
+  // the page, create + resume the AudioContext so subsequent async play
+  // calls (which happen *after* a fetch) are still allowed to start audio
+  // on iOS.
+  useEffect(() => {
+    let unlocked = false;
+    const events: (keyof WindowEventMap)[] = ["pointerdown", "touchend", "click", "keydown"];
+    const opts: AddEventListenerOptions = { passive: true, capture: true };
+    const cleanup = () => {
+      for (const evt of events) window.removeEventListener(evt, unlock, opts);
     };
+    function unlock() {
+      if (unlocked) return;
+      unlocked = true;
+      cleanup();
+      const ctx = ensureAudioContext();
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(err => console.error("Initial audio unlock failed:", err));
+      }
+    }
+    for (const evt of events) window.addEventListener(evt, unlock, opts);
+    return cleanup;
+  }, [ensureAudioContext]);
 
-    initAudioContext();
-
+  useEffect(() => {
     return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
+      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+        audioContextRef.current.close().catch(() => {});
       }
     };
   }, []);
@@ -77,39 +120,40 @@ export function useAudioManager() {
   }, []);
 
   const playAudioBuffer = useCallback(async (audioBuffer: AudioBuffer) => {
-    if (!audioContextRef.current || !gainNodeRef.current) {
+    const ctx = ensureAudioContext();
+    if (!ctx || !gainNodeRef.current) {
       console.error('Audio context or gain node not initialized');
-      return;
+      throw new Error("Audio isn't ready yet — tap anywhere on the page first, then try again.");
     }
 
-    if (audioContextRef.current.state === 'closed') {
+    if (ctx.state === 'closed') {
       console.error('Audio context has been closed');
-      return;
+      throw new Error("Audio system was closed. Please reload the page.");
     }
 
     stopCurrentAudio();
 
     try {
-      if (audioContextRef.current.state === "suspended") {
+      if (ctx.state === "suspended") {
         console.log('Resuming suspended audio context');
         try {
-          await audioContextRef.current.resume();
+          await ctx.resume();
           console.log('Audio context resumed successfully');
         } catch (resumeError) {
           console.error('Failed to resume audio context:', resumeError);
           setIsPlaying(false);
-          throw new Error(`Cannot play audio - audio context resume failed: ${resumeError instanceof Error ? resumeError.message : 'Unknown error'}`);
+          throw new Error("Tap the screen and try again — your browser is blocking audio until you interact with the page.");
         }
       }
-      
-      if (audioContextRef.current.state !== "running") {
-        const error = `Audio context is not running. Current state: ${audioContextRef.current.state}`;
+
+      if (ctx.state !== "running") {
+        const error = `Audio context is not running. Current state: ${ctx.state}`;
         console.error(error);
         setIsPlaying(false);
-        throw new Error(error);
+        throw new Error("Tap the screen and try again — your browser is blocking audio until you interact with the page.");
       }
 
-      const source = audioContextRef.current.createBufferSource();
+      const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
       source.loop = true;
       source.connect(gainNodeRef.current);
@@ -133,8 +177,9 @@ export function useAudioManager() {
         bufferDuration: audioBuffer?.duration
       });
       setIsPlaying(false);
+      throw error;
     }
-  }, [stopCurrentAudio]);
+  }, [ensureAudioContext, stopCurrentAudio]);
 
   const playPredefinedSoundscape = useCallback(async (type: "rain" | "coffee") => {
     // Preset audio is uploaded to durable object storage at server startup
@@ -149,17 +194,24 @@ export function useAudioManager() {
     const audioData = urls[type];
 
     try {
-      const audioBuffer = await createAudioBuffer(audioData, audioContextRef.current!);
+      const ctx = ensureAudioContext();
+      if (!ctx) {
+        throw new Error("Audio isn't ready yet — tap anywhere on the page first, then try again.");
+      }
+      const audioBuffer = await createAudioBuffer(audioData, ctx);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
       console.error(`Failed to load ${type} soundscape:`, error);
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: "Couldn't play soundscape",
-        description: `The ${type === "rain" ? "Rain" : "Coffee Shop"} preset failed to load.`,
+        description: /tap|interact|browser is blocking/i.test(message)
+          ? message
+          : `The ${type === "rain" ? "Rain" : "Coffee Shop"} preset failed to load.`,
         variant: "destructive",
       });
     }
-  }, [playAudioBuffer, toast]);
+  }, [ensureAudioContext, playAudioBuffer, toast]);
 
   const reportUnavailable = useCallback((soundscape: { id: string; name: string }) => {
     setUnavailableIds(prev => {
@@ -180,12 +232,13 @@ export function useAudioManager() {
 
   const playCustomSoundscape = useCallback(async (soundscape: CustomSoundscape) => {
     try {
-      if (!audioContextRef.current) {
-        throw new Error('Audio context not initialized');
+      const ctx = ensureAudioContext();
+      if (!ctx) {
+        throw new Error("Audio isn't ready yet — tap anywhere on the page first, then try again.");
       }
-      
+
       console.log('Attempting to play custom soundscape:', soundscape.name, 'from URL:', soundscape.audioUrl);
-      const audioBuffer = await createAudioBuffer(soundscape.audioUrl, audioContextRef.current);
+      const audioBuffer = await createAudioBuffer(soundscape.audioUrl, ctx);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
       console.error("Failed to play custom soundscape:", {
@@ -196,6 +249,12 @@ export function useAudioManager() {
       const message = error instanceof Error ? error.message : String(error);
       if (/404|not found/i.test(message)) {
         reportUnavailable(soundscape);
+      } else if (/tap|interact|browser is blocking/i.test(message)) {
+        toast({
+          title: "Tap to enable audio",
+          description: message,
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Couldn't play soundscape",
@@ -204,17 +263,18 @@ export function useAudioManager() {
         });
       }
     }
-  }, [playAudioBuffer, reportUnavailable, toast]);
+  }, [ensureAudioContext, playAudioBuffer, reportUnavailable, toast]);
 
   const playBonusSoundscape = useCallback(async (soundscape: BonusSoundscape) => {
     try {
-      if (!audioContextRef.current) {
-        throw new Error('Audio context not initialized');
+      const ctx = ensureAudioContext();
+      if (!ctx) {
+        throw new Error("Audio isn't ready yet — tap anywhere on the page first, then try again.");
       }
-      
+
       const audioUrl = soundscape.audioUrl;
       console.log('Attempting to play bonus soundscape from URL:', audioUrl);
-      const audioBuffer = await createAudioBuffer(audioUrl, audioContextRef.current);
+      const audioBuffer = await createAudioBuffer(audioUrl, ctx);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
       console.error("Failed to play bonus soundscape:", {
@@ -225,6 +285,12 @@ export function useAudioManager() {
       const message = error instanceof Error ? error.message : String(error);
       if (/404|not found/i.test(message)) {
         reportUnavailable(soundscape);
+      } else if (/tap|interact|browser is blocking/i.test(message)) {
+        toast({
+          title: "Tap to enable audio",
+          description: message,
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Couldn't play soundscape",
@@ -233,7 +299,7 @@ export function useAudioManager() {
         });
       }
     }
-  }, [playAudioBuffer, reportUnavailable, toast]);
+  }, [ensureAudioContext, playAudioBuffer, reportUnavailable, toast]);
 
   const setSoundscape = useCallback(async (type: SoundscapeType, customId?: string) => {
     setCurrentSoundscape(type);
@@ -242,6 +308,14 @@ export function useAudioManager() {
     if (type === "none") {
       stopCurrentAudio();
       return;
+    }
+
+    // Synchronously (no await yet) create + resume the AudioContext so the
+    // user-gesture credit is consumed before we hand off to the network. On
+    // iOS this is the difference between audio playing and silently failing.
+    const ctx = ensureAudioContext();
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume().catch(err => console.error("Audio context resume failed:", err));
     }
 
     if (type === "rain" || type === "coffee") {
@@ -404,35 +478,39 @@ export function useAudioManager() {
   }, [loadBonusSoundscapes]);
 
   const playNotificationSound = useCallback(async () => {
-    if (!audioContextRef.current || audioContextRef.current.state === 'closed') return;
+    const ctx = ensureAudioContext();
+    if (!ctx || ctx.state === 'closed') return;
+    if (ctx.state === 'suspended') {
+      try { await ctx.resume(); } catch {}
+    }
 
     try {
-      const audioBuffer = await createAudioBuffer("/audio/notification.mp3", audioContextRef.current);
-      const source = audioContextRef.current.createBufferSource();
+      const audioBuffer = await createAudioBuffer("/audio/notification.mp3", ctx);
+      const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(audioContextRef.current.destination);
+      source.connect(ctx.destination);
       source.start();
     } catch (error) {
       try {
-        const oscillator = audioContextRef.current.createOscillator();
-        const gainNode = audioContextRef.current.createGain();
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
         
         oscillator.connect(gainNode);
-        gainNode.connect(audioContextRef.current.destination);
-        
-        oscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
-        oscillator.frequency.setValueAtTime(600, audioContextRef.current.currentTime + 0.1);
-        
-        gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.3);
-        
-        oscillator.start(audioContextRef.current.currentTime);
-        oscillator.stop(audioContextRef.current.currentTime + 0.3);
+        gainNode.connect(ctx.destination);
+
+        oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(600, ctx.currentTime + 0.1);
+
+        gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.3);
       } catch (fallbackError) {
         console.error("Failed to play notification sound:", fallbackError);
       }
     }
-  }, []);
+  }, [ensureAudioContext]);
 
   return {
     currentSoundscape,

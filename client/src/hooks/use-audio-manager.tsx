@@ -30,7 +30,34 @@ export function useAudioManager() {
   const [unavailableIds, setUnavailableIds] = useState<Set<string>>(new Set());
   const [volume, setVolume] = useState(0.3);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioUnlocked, setAudioUnlocked] = useState(false);
+
+  // Persist the audio-unlock decision across visits so the mobile "Tap to
+  // enable audio" prompt only has to appear the first time. We seed initial
+  // state from localStorage; if the browser has actually revoked the
+  // permission, the next play attempt will fail and we'll clear the flag
+  // (see reportLockedAudio).
+  const AUDIO_UNLOCK_STORAGE_KEY = "audio-unlocked-v1";
+  const readStoredUnlock = () => {
+    if (typeof window === "undefined") return false;
+    try { return window.localStorage.getItem(AUDIO_UNLOCK_STORAGE_KEY) === "1"; }
+    catch { return false; }
+  };
+  const writeStoredUnlock = (value: boolean) => {
+    if (typeof window === "undefined") return;
+    try {
+      if (value) window.localStorage.setItem(AUDIO_UNLOCK_STORAGE_KEY, "1");
+      else window.localStorage.removeItem(AUDIO_UNLOCK_STORAGE_KEY);
+    } catch {}
+  };
+
+  const [audioUnlocked, _setAudioUnlocked] = useState<boolean>(() => readStoredUnlock());
+  // Only persist `true` from the generic setter — transient transitions to
+  // "suspended" (e.g. backgrounded tab) shouldn't wipe the remembered unlock.
+  // Genuine failures call writeStoredUnlock(false) explicitly.
+  const setAudioUnlocked = useCallback((value: boolean) => {
+    _setAudioUnlocked(value);
+    if (value) writeStoredUnlock(true);
+  }, []);
   const reportedMissingRef = useRef<Set<string>>(new Set());
 
   const isMobileViewport = () => {
@@ -38,7 +65,8 @@ export function useAudioManager() {
     return window.matchMedia?.("(max-width: 767px)").matches ?? false;
   };
   const reportLockedAudio = (soundscapeName?: string) => {
-    setAudioUnlocked(false);
+    _setAudioUnlocked(false);
+    writeStoredUnlock(false);
     if (!isMobileViewport()) {
       toast({
         title: "Tap to enable audio",

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Headphones, Settings, Moon, Sun, LogOut, Volume2, VolumeX } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,18 @@ export default function PomodoroPage() {
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
   const isMobile = useIsMobile();
-  const [audioReadyDismissed, setAudioReadyDismissed] = useState(false);
-  const [hasShownAudioReady, setHasShownAudioReady] = useState(false);
+  // If audio was already unlocked on a previous visit (persisted in
+  // localStorage by useAudioManager), skip the "audio ready" confirmation
+  // banner too — returning users shouldn't see any audio-state UI flicker.
+  const audioPreviouslyUnlocked = useRef<boolean>(false);
+  if (typeof window !== "undefined" && !audioPreviouslyUnlocked.current) {
+    try {
+      audioPreviouslyUnlocked.current =
+        window.localStorage.getItem("audio-unlocked-v1") === "1";
+    } catch {}
+  }
+  const [audioReadyDismissed, setAudioReadyDismissed] = useState(audioPreviouslyUnlocked.current);
+  const [hasShownAudioReady, setHasShownAudioReady] = useState(audioPreviouslyUnlocked.current);
   
   const {
     state: timerState,

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { VolumeX, Volume2, Cloud, Coffee, Sparkles, X } from "lucide-react";
+import { VolumeX, Volume2, Cloud, Coffee, Sparkles, X, Lock } from "lucide-react";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -24,6 +24,7 @@ interface AudioControlsProps {
   isPlaying: boolean;
   volume: number;
   canDeleteCustom?: boolean;
+  isAuthenticated?: boolean;
   onSoundscapeChange: (type: SoundscapeType, customId?: string) => void;
   onVolumeChange: (volume: number) => void;
   onGenerateAI: () => void;
@@ -39,6 +40,7 @@ export function AudioControls({
   isPlaying,
   volume,
   canDeleteCustom = false,
+  isAuthenticated = false,
   onSoundscapeChange,
   onVolumeChange,
   onGenerateAI,
@@ -247,9 +249,19 @@ export function AudioControls({
           className="w-full py-3 h-auto transition-all duration-200 active:scale-95"
           onClick={onGenerateAI}
           data-testid="button-generate-ai"
+          title={isAuthenticated ? undefined : "Sign in required to generate AI soundscapes"}
         >
           <Sparkles className="h-4 w-4 mr-1 text-primary" />
           <span className="text-sm font-medium">Generate AI Soundscape</span>
+          {!isAuthenticated && (
+            <span
+              className="ml-2 inline-flex items-center gap-1 text-[11px] font-normal text-muted-foreground"
+              data-testid="generate-ai-signin-hint"
+            >
+              <Lock className="h-3 w-3" aria-hidden="true" />
+              Sign in
+            </span>
+          )}
         </Button>
       </CardContent>
     </Card>

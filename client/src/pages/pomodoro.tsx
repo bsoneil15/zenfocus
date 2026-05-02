@@ -348,6 +348,11 @@ export default function PomodoroPage() {
             setIsAIGeneratorOpen(true);
           }}
           canDeleteCustom={!!user}
+          // Treat the auth-loading window as "authenticated" for the
+          // sign-in cue: we don't want to flash a Sign-in hint to a user
+          // who is actually signed in, just because /api/auth/user hasn't
+          // resolved yet on first paint.
+          isAuthenticated={isAuthLoading || !!user}
           onDeleteCustom={deleteCustomSoundscape}
         />
 

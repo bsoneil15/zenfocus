@@ -27,7 +27,7 @@ export default function PomodoroPage() {
 
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
-  const { user, logout } = useAuth();
+  const { user, isLoading: isAuthLoading, logout } = useAuth();
   const isMobile = useIsMobile();
   // If audio was already unlocked on a previous visit (persisted in
   // localStorage by useAudioManager), skip the "audio ready" confirmation
@@ -253,7 +253,13 @@ export default function PomodoroPage() {
             <Settings className="h-4 w-4" />
           </Button>
 
-          {user ? (
+          {isAuthLoading ? (
+            <div
+              className="w-10 h-10 rounded-lg"
+              aria-hidden="true"
+              data-testid="auth-state-loading"
+            />
+          ) : user ? (
             <Button
               variant="ghost"
               size="icon"
@@ -334,7 +340,13 @@ export default function PomodoroPage() {
           isPlaying={isPlaying}
           onVolumeChange={setVolume}
           onSoundscapeChange={handleSoundscapeChange}
-          onGenerateAI={() => setIsAIGeneratorOpen(true)}
+          onGenerateAI={() => {
+            // While auth is still resolving, defer opening the panel so a
+            // signed-in user doesn't briefly see the guest sign-in prompt
+            // before their session loads.
+            if (isAuthLoading) return;
+            setIsAIGeneratorOpen(true);
+          }}
           canDeleteCustom={!!user}
           onDeleteCustom={deleteCustomSoundscape}
         />

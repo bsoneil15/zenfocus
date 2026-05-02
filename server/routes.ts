@@ -66,18 +66,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  app.get("/api/soundscapes/suggestions", suggestionsRateLimiter.middleware(), async (req, res) => {
-    try {
-      const suggestions = await generateFocusPrompts();
-      res.json({ suggestions });
-    } catch (error) {
-      console.error("Failed to generate suggestions:", error);
-      res.status(500).json({ 
-        message: "Failed to generate suggestions",
-        error: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
+  // Require authentication: this endpoint triggers a paid OpenAI call, and
+  // the frontend only ever invokes it for signed-in users. Gating server-side
+  // prevents anonymous traffic (or scripted abuse) from spending OpenAI
+  // credits. The per-IP suggestionsRateLimiter is kept as a secondary
+  // throttle against bursts from a single account.
+  app.get(
+    "/api/soundscapes/suggestions",
+    isAuthenticated,
+    suggestionsRateLimiter.middleware(),
+    async (req, res) => {
+      try {
+        const suggestions = await generateFocusPrompts();
+        res.json({ suggestions });
+      } catch (error) {
+        console.error("Failed to generate suggestions:", error);
+        res.status(500).json({
+          message: "Failed to generate suggestions",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    },
+  );
 
   app.get("/api/soundscapes", async (req, res) => {
     try {

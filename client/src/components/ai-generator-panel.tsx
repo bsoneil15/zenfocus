@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { Loader2, LogIn, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -22,6 +22,7 @@ interface HourlyUsage {
 
 interface AIGeneratorPanelProps {
   isOpen: boolean;
+  isAuthenticated: boolean;
   onClose: () => void;
   onSoundscapeGenerated: (soundscape: { id: string; name: string; audioUrl: string; prompt: string }) => void;
 }
@@ -31,10 +32,11 @@ interface PromptSuggestion {
   text: string;
 }
 
-export function AIGeneratorPanel({ 
-  isOpen, 
-  onClose, 
-  onSoundscapeGenerated 
+export function AIGeneratorPanel({
+  isOpen,
+  isAuthenticated,
+  onClose,
+  onSoundscapeGenerated,
 }: AIGeneratorPanelProps) {
   const [customPrompt, setCustomPrompt] = useState("");
   const [suggestions, setSuggestions] = useState<PromptSuggestion[]>([]);
@@ -46,12 +48,12 @@ export function AIGeneratorPanel({
 
   const { data: dailyUsage, isLoading: isLoadingUsage } = useQuery<DailyUsage>({
     queryKey: ["/api/soundscapes/daily-limit"],
-    enabled: isOpen,
+    enabled: isOpen && isAuthenticated,
   });
 
   const { data: hourlyUsage, isLoading: isLoadingHourly } = useQuery<HourlyUsage>({
     queryKey: ["/api/soundscapes/hourly-limit"],
-    enabled: isOpen,
+    enabled: isOpen && isAuthenticated,
   });
 
   const remainingGenerations = dailyUsage?.remaining ?? 0;
@@ -216,14 +218,65 @@ export function AIGeneratorPanel({
     }
   };
 
-  // Load suggestions whenever the panel opens
+  // Load suggestions whenever the panel opens for a signed-in user.
+  // Guests see a sign-in prompt instead of the generator, so we don't
+  // need to spend an OpenAI suggestions call on them.
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && isAuthenticated) {
       loadSuggestions();
     }
-  }, [isOpen, loadSuggestions]);
+  }, [isOpen, isAuthenticated, loadSuggestions]);
 
   if (!isOpen) return null;
+
+  if (!isAuthenticated) {
+    return (
+      <div
+        className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
+        data-testid="ai-generator-signin-prompt"
+        onClick={onClose}
+      >
+        <div
+          className="absolute bottom-0 left-0 right-0 bg-card border-t border-border rounded-t-3xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-12 h-1 bg-muted rounded-full mx-auto mb-6" />
+          <div className="max-w-md mx-auto text-center">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="h-6 w-6 text-primary" />
+            </div>
+            <h2 className="text-base sm:text-lg font-semibold text-foreground mb-2">
+              Sign in to generate AI soundscapes
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mb-6">
+              Custom AI-generated soundscapes use real API credits, so they're
+              limited per account. Sign in to unlock the generator and get your
+              daily allotment. The timer and built-in soundscapes stay free for
+              everyone.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
+              <Button
+                variant="outline"
+                className="flex-1 transition-colors active:scale-95 text-xs sm:text-sm py-2 sm:py-3"
+                onClick={onClose}
+                data-testid="button-signin-prompt-cancel"
+              >
+                Maybe later
+              </Button>
+              <Button
+                className="flex-1 transition-colors active:scale-95 text-xs sm:text-sm py-2 sm:py-3 gap-2"
+                onClick={() => { window.location.href = "/api/login"; }}
+                data-testid="button-signin-prompt-confirm"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign In
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 

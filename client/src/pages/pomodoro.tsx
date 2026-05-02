@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Headphones, Settings, Moon, Sun, LogOut, Volume2, VolumeX } from "lucide-react";
+import { Headphones, Settings, Moon, Sun, LogOut, LogIn, Volume2, VolumeX } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -253,16 +253,30 @@ export default function PomodoroPage() {
             <Settings className="h-4 w-4" />
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="w-10 h-10 rounded-lg"
-            onClick={logout}
-            title={`Sign out (${user?.firstName || user?.email || 'user'})`}
-            data-testid="button-logout"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
+          {user ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-10 h-10 rounded-lg"
+              onClick={() => logout()}
+              title={`Sign out (${user?.firstName || user?.email || 'user'})`}
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 rounded-lg gap-2"
+              onClick={() => { window.location.href = "/api/login"; }}
+              title="Sign in"
+              data-testid="button-signin"
+            >
+              <LogIn className="h-4 w-4" />
+              <span className="text-sm font-medium">Sign In</span>
+            </Button>
+          )}
         </div>
       </header>
       {isMobile && !audioUnlocked && (
@@ -344,6 +358,7 @@ export default function PomodoroPage() {
       />
       <AIGeneratorPanel
         isOpen={isAIGeneratorOpen}
+        isAuthenticated={!!user}
         onClose={() => setIsAIGeneratorOpen(false)}
         onSoundscapeGenerated={handleSoundscapeGenerated}
       />

@@ -93,7 +93,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/soundscapes/generate", soundscapeRateLimiter.middleware(), async (req, res) => {
+  app.post("/api/soundscapes/generate", isAuthenticated, soundscapeRateLimiter.middleware(), async (req, res) => {
     const generateRequestSchema = z.object({
       prompt: z.string().min(1).max(500),
       duration: z.number().min(21).max(21).default(21),

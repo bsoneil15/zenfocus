@@ -1,5 +1,4 @@
 import type { Request, Response, NextFunction } from "express";
-import { isIP } from "net";
 
 interface RateLimitEntry {
   count: number;
@@ -38,46 +37,23 @@ class RateLimiter {
   }
 
   private getClientKey(req: Request): string {
-    // Try multiple headers in order of reliability
-    // X-Real-IP is typically set by reverse proxies and is harder to spoof
-    const realIp = req.headers['x-real-ip'];
-    if (realIp && typeof realIp === 'string') {
-      const trimmedIp = realIp.trim();
-      // Validate IP format to prevent spoofing attempts
-      if (this.isValidIp(trimmedIp)) {
-        return trimmedIp;
-      }
-    }
-    
-    // X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2, ...)
-    // Use the first IP which should be the original client
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-      const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
-      const trimmedIp = ip.trim();
-      
-      // Basic IP validation to prevent obvious spoofing attempts
-      if (this.isValidIp(trimmedIp)) {
-        return trimmedIp;
-      }
-    }
-    
-    // Fallback to socket remote address (most reliable but may be proxy IP)
-    const socketIp = req.socket.remoteAddress;
-    if (socketIp) {
-      return socketIp.trim();
-    }
-    
-    // Last resort fallback
-    return 'unknown';
-  }
-  
-  private isValidIp(ip: string): boolean {
-    // Use Node's built-in IP validation which properly handles:
-    // - IPv4 with octet range validation (0-255)
-    // - IPv6 in all forms (standard, compressed, hybrid)
-    // Returns 4 for IPv4, 6 for IPv6, or 0 for invalid
-    return isIP(ip) !== 0;
+    // Use Express's trust-proxy-resolved client IP. With
+    // `app.set("trust proxy", 1)` configured at startup, `req.ip` returns
+    // the left-most untrusted address from `X-Forwarded-For` (i.e. the
+    // real client IP as reported by the single trusted reverse proxy in
+    // front of us), and falls back to the socket remote address otherwise.
+    //
+    // Crucially, this means the limiter ignores attacker-supplied headers
+    // such as `X-Real-IP` or extra `X-Forwarded-For` entries beyond the
+    // trusted hop, so anonymous callers can't bucket-hop their way past
+    // the per-IP quota by varying those headers.
+    const ip = req.ip?.trim();
+    if (ip) return ip;
+
+    const socketIp = req.socket.remoteAddress?.trim();
+    if (socketIp) return socketIp;
+
+    return "unknown";
   }
 
   public middleware() {

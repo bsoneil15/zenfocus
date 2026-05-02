@@ -1,5 +1,4 @@
 import type { Request } from "express";
-import { isIP } from "net";
 import { storage } from "../storage";
 
 export const DAILY_SOUNDSCAPE_LIMIT = 3;
@@ -10,20 +9,13 @@ function todayKey(): string {
 }
 
 function getClientIp(req: Request): string {
-  const realIp = req.headers["x-real-ip"];
-  if (realIp && typeof realIp === "string") {
-    const trimmed = realIp.trim();
-    if (isIP(trimmed) !== 0) return trimmed;
-  }
-
-  const forwarded = req.headers["x-forwarded-for"];
-  if (forwarded) {
-    const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(",")[0];
-    const trimmed = ip.trim();
-    if (isIP(trimmed) !== 0) return trimmed;
-  }
-
-  return req.socket.remoteAddress?.trim() || "unknown";
+  // Use Express's trust-proxy-resolved client IP rather than reading raw
+  // request headers, so attackers can't mint a fresh per-day quota bucket
+  // simply by varying `X-Real-IP` or `X-Forwarded-For` on each request.
+  // `app.set("trust proxy", 1)` is configured at startup, which makes
+  // `req.ip` honor exactly one trusted reverse-proxy hop and ignore any
+  // additional client-supplied entries.
+  return req.ip?.trim() || req.socket.remoteAddress?.trim() || "unknown";
 }
 
 export function getDailyLimitKey(req: Request): string {

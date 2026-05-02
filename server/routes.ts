@@ -334,47 +334,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/sessions", async (req, res) => {
-    try {
-      const sessionSchema = z.object({
-        duration: z.number().min(1),
-        isBreak: z.boolean().default(false),
-        completed: z.boolean().default(false),
-        soundscapeId: z.string().optional(),
-      });
-
-      const validatedData = sessionSchema.parse(req.body);
-      const session = await storage.createPomodoroSession(validatedData);
-      
-      res.json(session);
-    } catch (error) {
-      console.error("Failed to create session:", error);
-      
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ 
-          message: "Invalid request data",
-          errors: error.errors 
-        });
-      } else {
-        res.status(500).json({ 
-          message: "Failed to create session",
-          error: error instanceof Error ? error.message : "Unknown error"
-        });
-      }
-    }
-  });
-
-  app.get("/api/sessions", async (req, res) => {
-    try {
-      const sessions = await storage.getPomodoroSessions();
-      res.json({ sessions });
-    } catch (error) {
-      console.error("Failed to get sessions:", error);
-      res.status(500).json({ 
-        message: "Failed to get sessions",
-        error: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
+  // The legacy /api/sessions endpoints have been removed. They were
+  // unauthenticated and unscoped: GET returned the entire pomodoro_sessions
+  // table to any caller, and POST let any caller insert arbitrary rows.
+  // Nothing in the current frontend uses them, so we respond 410 Gone so
+  // any stale clients fail loudly instead of silently regressing back to
+  // a public read/write surface on production data.
+  app.all("/api/sessions", (_req, res) => {
+    res.status(410).json({
+      message:
+        "This endpoint has been removed. Pomodoro session history is no longer exposed via a public API.",
+    });
   });
 
   // The legacy GET /api/audio/:filename endpoint that served MP3s out of the

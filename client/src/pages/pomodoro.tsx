@@ -340,19 +340,9 @@ export default function PomodoroPage() {
           isPlaying={isPlaying}
           onVolumeChange={setVolume}
           onSoundscapeChange={handleSoundscapeChange}
-          onGenerateAI={() => {
-            // While auth is still resolving, defer opening the panel so a
-            // signed-in user doesn't briefly see the guest sign-in prompt
-            // before their session loads.
-            if (isAuthLoading) return;
-            setIsAIGeneratorOpen(true);
-          }}
+          onGenerateAI={() => setIsAIGeneratorOpen(true)}
           canDeleteCustom={!!user}
-          // Treat the auth-loading window as "authenticated" for the
-          // sign-in cue: we don't want to flash a Sign-in hint to a user
-          // who is actually signed in, just because /api/auth/user hasn't
-          // resolved yet on first paint.
-          isAuthenticated={isAuthLoading || !!user}
+          isAuthenticated={!!user}
           onDeleteCustom={deleteCustomSoundscape}
         />
 

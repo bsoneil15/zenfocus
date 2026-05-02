@@ -16,14 +16,4 @@ export function registerAuthRoutes(app: Express): void {
     }
   });
 
-  // Get all users who have logged in
-  app.get("/api/auth/users", isAuthenticated, async (req: any, res) => {
-    try {
-      const users = await authStorage.getAllUsers();
-      res.json(users);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      res.status(500).json({ message: "Failed to fetch users" });
-    }
-  });
 }

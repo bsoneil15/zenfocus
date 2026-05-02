@@ -142,12 +142,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
 
     try {
+      const ownerId = (req.user as any)?.claims?.sub ?? null;
+
       const soundResult = await generateSound({
         prompt: validatedData.prompt,
         duration: validatedData.duration,
         looping: validatedData.looping,
         promptInfluence: validatedData.promptInfluence,
-      });
+      }, ownerId ?? undefined);
 
       console.log("About to call generateSoundscapeName with prompt:", validatedData.prompt);
       let name;
@@ -158,8 +160,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error in generateSoundscapeName:", nameError);
         name = "Custom Soundscape";
       }
-
-      const ownerId = (req.user as any)?.claims?.sub ?? null;
 
       const soundscape = await storage.createSoundscape({
         name,

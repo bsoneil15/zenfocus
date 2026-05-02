@@ -25,7 +25,7 @@ const soundGenerationRequestSchema = z.object({
   promptInfluence: z.number().min(0, "Prompt influence must be between 0 and 1").max(1, "Prompt influence must be between 0 and 1").optional(),
 });
 
-export async function generateSound(request: SoundGenerationRequest): Promise<SoundGenerationResponse> {
+export async function generateSound(request: SoundGenerationRequest, ownerId?: string): Promise<SoundGenerationResponse> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   
   if (!apiKey) {
@@ -115,11 +115,12 @@ export async function generateSound(request: SoundGenerationRequest): Promise<So
           contentType: "audio/mpeg",
           resumable: false,
         });
-        // Mark object public so the /objects/* serving route allows reads
-        // without per-user ACL checks.
+        // Mark object private so only the owner can access it via the
+        // /objects/* serving route. The ACL must match the soundscape row's
+        // isPublic flag to prevent unauthenticated access to private audio.
         await setObjectAclPolicy(file, {
-          owner: "system",
-          visibility: "public",
+          owner: ownerId ?? "system",
+          visibility: "private",
         });
         console.log(
           `Saved soundscape to object storage: soundscapes/${objectId} (${audioBuffer.byteLength} bytes)`

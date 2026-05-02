@@ -179,6 +179,11 @@ export class DatabaseStorage implements IStorage {
       this.migrateLegacyAudioToObjectStorage().catch((err) => {
         console.error("Legacy audio migration failed:", err);
       });
+      // Fire-and-forget: correct ACL visibility on any /objects/... soundscape
+      // audio that was previously uploaded with the wrong (public) ACL policy.
+      this.reconcileObjectStorageAcls().catch((err) => {
+        console.error("Object storage ACL reconciliation failed:", err);
+      });
     } catch (error) {
       console.error("Failed to initialize database storage:", error);
       throw error;
@@ -241,7 +246,7 @@ export class DatabaseStorage implements IStorage {
         }
         await setObjectAclPolicy(file, {
           owner: row.ownerId ?? "system",
-          visibility: "public",
+          visibility: row.isPublic ? "public" : "private",
         });
         const newUrl = `/objects/soundscapes/${filename}`;
         await db
@@ -258,6 +263,65 @@ export class DatabaseStorage implements IStorage {
     }
     console.log(
       `Legacy audio migration complete: migrated=${migrated}, missing=${missing}, total=${legacy.length}`
+    );
+  }
+
+  // Backfill: soundscapes previously generated with the incorrect
+  // visibility: "public" ACL (even when isPublic is false) are corrected
+  // here. This runs once at startup so that pre-patch private audio is no
+  // longer anonymously accessible via the /objects/... URL.
+  private async reconcileObjectStorageAcls() {
+    const rows = await db.select().from(soundscapes);
+    const objectRows = rows.filter((s) =>
+      s.audioUrl.startsWith("/objects/")
+    );
+    if (objectRows.length === 0) return;
+
+    const objectStorage = new ObjectStorageService();
+    let privateDir: string;
+    try {
+      privateDir = objectStorage.getPrivateObjectDir();
+    } catch (err) {
+      console.warn(
+        "Skipping object ACL reconciliation: object storage not configured.",
+        err
+      );
+      return;
+    }
+    if (!privateDir.endsWith("/")) privateDir = `${privateDir}/`;
+
+    let fixed = 0;
+    let skipped = 0;
+    for (const row of objectRows) {
+      try {
+        // Resolve the /objects/<entityId> path to the underlying GCS file
+        // using the same logic as ObjectStorageService.getObjectEntityFile.
+        const entityId = row.audioUrl.slice("/objects/".length);
+        const fullPath = `${privateDir}${entityId}`;
+        const stripped = fullPath.startsWith("/") ? fullPath.slice(1) : fullPath;
+        const slash = stripped.indexOf("/");
+        const bucketName = stripped.slice(0, slash);
+        const objectName = stripped.slice(slash + 1);
+        const file = objectStorageClient.bucket(bucketName).file(objectName);
+        const [exists] = await file.exists();
+        if (!exists) {
+          skipped++;
+          continue;
+        }
+        await setObjectAclPolicy(file, {
+          owner: row.ownerId ?? "system",
+          visibility: row.isPublic ? "public" : "private",
+        });
+        fixed++;
+      } catch (err) {
+        console.error(
+          `Failed to reconcile ACL for soundscape ${row.id} (${row.audioUrl}):`,
+          err
+        );
+      }
+    }
+    console.log(
+      `Object storage ACL reconciliation complete: fixed=${fixed}, skipped=${skipped}, total=${objectRows.length}`
     );
   }
 

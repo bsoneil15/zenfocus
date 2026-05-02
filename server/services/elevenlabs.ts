@@ -195,6 +195,13 @@ let healthInterval: NodeJS.Timeout | null = null;
 const REWARN_INTERVAL_MS = 60 * 60 * 1000;
 let lastWarnLoggedAt = 0;
 
+const UNHEALTHY_STATUSES: ReadonlySet<ElevenLabsHealthStatus> = new Set<ElevenLabsHealthStatus>([
+  "unauthorized",
+  "rate_limited",
+  "unreachable",
+  "missing_key",
+]);
+
 export function getElevenLabsHealth(): ElevenLabsHealth {
   return { ...currentHealth };
 }
@@ -213,6 +220,7 @@ export async function checkElevenLabsHealth(): Promise<ElevenLabsHealth> {
       lastOkAt: currentHealth.lastOkAt,
     };
     maybeLogWarn(previousStatus, "missing_key", "ELEVENLABS_API_KEY is not set; sound generation will fail");
+    maybeSendAlert(previousStatus, "missing_key", "ELEVENLABS_API_KEY is not set; sound generation will fail", null);
     return getElevenLabsHealth();
   }
 
@@ -233,6 +241,7 @@ export async function checkElevenLabsHealth(): Promise<ElevenLabsHealth> {
         console.log("[elevenlabs-health] recovered: ElevenLabs API key is valid again");
       }
       lastWarnLoggedAt = 0;
+      maybeSendAlert(previousStatus, "ok", "ElevenLabs API key is valid again", response.status);
       return getElevenLabsHealth();
     }
 
@@ -257,6 +266,7 @@ export async function checkElevenLabsHealth(): Promise<ElevenLabsHealth> {
       lastOkAt: currentHealth.lastOkAt,
     };
     maybeLogWarn(previousStatus, status, message);
+    maybeSendAlert(previousStatus, status, message, response.status);
     return getElevenLabsHealth();
   } catch (error) {
     const message = `Failed to reach ElevenLabs: ${error instanceof Error ? error.message : "unknown error"}`;
@@ -268,6 +278,7 @@ export async function checkElevenLabsHealth(): Promise<ElevenLabsHealth> {
       lastOkAt: currentHealth.lastOkAt,
     };
     maybeLogWarn(previousStatus, "unreachable", message);
+    maybeSendAlert(previousStatus, "unreachable", message, null);
     return getElevenLabsHealth();
   }
 }
@@ -286,6 +297,97 @@ function maybeLogWarn(
     console.warn(`[elevenlabs-health] WARN: ${message}`);
     lastWarnLoggedAt = now;
   }
+}
+
+// ----- Alert dispatcher --------------------------------------------------
+// Posts a notification to ELEVENLABS_ALERT_WEBHOOK_URL whenever the health
+// status transitions into an unhealthy state (so the team gets paged the
+// moment generation starts failing) or recovers back to `ok` (so an old
+// alert doesn't sit stale in the inbox). The webhook payload is
+// intentionally generic — it includes `text` (Slack-compatible) and
+// `content` (Discord-compatible) plus a structured `alert` object so any
+// inbound webhook receiver can render or route it. If the env var is not
+// set, the feature degrades quietly to a no-op.
+
+const ALERT_WEBHOOK_ENV = "ELEVENLABS_ALERT_WEBHOOK_URL";
+let missingWebhookLogged = false;
+
+function maybeSendAlert(
+  previousStatus: ElevenLabsHealthStatus,
+  newStatus: ElevenLabsHealthStatus,
+  message: string,
+  httpStatus: number | null,
+): void {
+  // Only fire on actual state changes — avoids paging again on every
+  // 5-minute poll while an outage persists.
+  if (previousStatus === newStatus) return;
+
+  const isRecovery =
+    newStatus === "ok" && previousStatus !== "ok" && previousStatus !== "unknown";
+  const isFailure = UNHEALTHY_STATUSES.has(newStatus);
+
+  if (!isRecovery && !isFailure) return;
+
+  const webhookUrl = process.env[ALERT_WEBHOOK_ENV];
+  if (!webhookUrl) {
+    // Log once so an operator who set up the monitor can spot that
+    // alerts aren't going anywhere, then stay silent.
+    if (!missingWebhookLogged) {
+      console.log(
+        `[elevenlabs-health] ${ALERT_WEBHOOK_ENV} is not set; skipping alert dispatch (status: ${previousStatus} -> ${newStatus})`,
+      );
+      missingWebhookLogged = true;
+    }
+    return;
+  }
+
+  const severity = isRecovery ? "recovered" : "failing";
+  const emoji = isRecovery ? "✅" : "🚨";
+  const summary = isRecovery
+    ? `${emoji} ElevenLabs recovered: ${message}`
+    : `${emoji} ElevenLabs ${newStatus}: ${message}`;
+
+  const payload = {
+    text: summary,
+    content: summary,
+    alert: {
+      service: "elevenlabs",
+      severity,
+      previousStatus,
+      newStatus,
+      message,
+      httpStatus,
+      checkedAt: currentHealth.lastCheckedAt,
+      lastOkAt: currentHealth.lastOkAt,
+    },
+  };
+
+  // Fire-and-forget: never let a webhook failure block or crash the
+  // health monitor. We log dispatch outcomes with the same greppable
+  // prefix so they're easy to find alongside the WARN lines.
+  void (async () => {
+    try {
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        console.error(
+          `[elevenlabs-health] alert webhook returned HTTP ${response.status} for ${previousStatus} -> ${newStatus}`,
+        );
+      } else {
+        console.log(
+          `[elevenlabs-health] alert dispatched (${previousStatus} -> ${newStatus})`,
+        );
+      }
+    } catch (err) {
+      console.error(
+        `[elevenlabs-health] alert webhook threw for ${previousStatus} -> ${newStatus}:`,
+        err,
+      );
+    }
+  })();
 }
 
 export function startElevenLabsHealthMonitor(intervalMs: number = 5 * 60 * 1000): void {

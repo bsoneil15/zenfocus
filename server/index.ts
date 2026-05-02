@@ -68,7 +68,10 @@ app.use((req, res, next) => {
   // Start the ElevenLabs key health monitor: pings /v1/user shortly after
   // startup and every 5 minutes, logging a greppable WARN
   // (`[elevenlabs-health] WARN: ...`) when the key is rejected or rate
-  // limited so we notice before users do.
+  // limited so we notice before users do. When ELEVENLABS_ALERT_WEBHOOK_URL
+  // is set, the monitor also POSTs a notification to that webhook on every
+  // status flip (failure or recovery) so the team gets paged instead of
+  // having to tail logs.
   startElevenLabsHealthMonitor();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

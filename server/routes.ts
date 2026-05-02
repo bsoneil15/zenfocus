@@ -18,6 +18,8 @@ import {
   ObjectNotFoundError,
   ObjectPermission,
   canAccessObject,
+  objectStorageClient,
+  setObjectAclPolicy,
 } from "./replit_integrations/object_storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -238,6 +240,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
         code: "generation_failed",
         message: "Failed to generate soundscape. Please try again.",
         detail: raw,
+      });
+    }
+  });
+
+  // Adopt a guest's locally-tracked soundscapes once they sign in. The
+  // client sends the IDs it had been remembering in localStorage; the
+  // server claims any rows that still exist, are private, and have no
+  // owner yet, and best-effort updates the underlying audio object's ACL
+  // so the new owner can stream it via the /objects/* route.
+  app.post("/api/soundscapes/adopt", isAuthenticated, async (req, res) => {
+    const adoptRequestSchema = z.object({
+      ids: z.array(z.string().min(1).max(256)).max(100),
+    });
+
+    let validated: z.infer<typeof adoptRequestSchema>;
+    try {
+      validated = adoptRequestSchema.parse(req.body);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          code: "invalid_request",
+          message: "Invalid request data",
+          errors: error.errors,
+        });
+      }
+      throw error;
+    }
+
+    const ownerId = (req.user as any)?.claims?.sub;
+    if (!ownerId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // De-duplicate to keep the SQL update predictable.
+    const uniqueIds = Array.from(new Set(validated.ids));
+    if (uniqueIds.length === 0) {
+      return res.json({ adopted: [] });
+    }
+
+    try {
+      // Pre-flight: figure out which IDs are *actually* adoptable (exist,
+      // private, currently ownerless). We do this so we can rewrite each
+      // audio object's ACL FIRST, and only then update DB ownership for
+      // the rows whose ACL update succeeded. That guarantees we never end
+      // up with a row owned by the user that they can't actually stream.
+      const candidates = await storage.getOrphanSoundscapesByIds(uniqueIds);
+      if (candidates.length === 0) {
+        return res.json({ adopted: [] });
+      }
+
+      const objectStorage = new ObjectStorageService();
+      let privateDir: string | null = null;
+      try {
+        privateDir = objectStorage.getPrivateObjectDir();
+        if (!privateDir.endsWith("/")) privateDir = `${privateDir}/`;
+      } catch (err) {
+        console.warn(
+          "Object storage not configured; cannot adopt soundscapes that need ACL updates.",
+          err,
+        );
+        privateDir = null;
+      }
+
+      // For each candidate, attempt the ACL rewrite. Only IDs whose ACL
+      // is now safely owned by the new user are passed on to the DB
+      // claim step. Rows whose audio file is missing on object storage
+      // are also claimable — there's no ACL to break, and the row's
+      // metadata is still worth carrying over so the user can clean it
+      // up themselves. Anything that fails is left as an orphan so the
+      // next sign-in attempt (which the client will keep retrying via
+      // localStorage) can try again.
+      const claimableIds: string[] = [];
+      const aclFailedIds: string[] = [];
+      for (const row of candidates) {
+        if (!row.audioUrl?.startsWith("/objects/")) {
+          // No private object backing this row — nothing to ACL.
+          claimableIds.push(row.id);
+          continue;
+        }
+        if (!privateDir) {
+          aclFailedIds.push(row.id);
+          continue;
+        }
+        try {
+          const entityId = row.audioUrl.slice("/objects/".length);
+          const fullPath = `${privateDir}${entityId}`;
+          const stripped = fullPath.startsWith("/") ? fullPath.slice(1) : fullPath;
+          const slash = stripped.indexOf("/");
+          const bucketName = stripped.slice(0, slash);
+          const objectName = stripped.slice(slash + 1);
+          const file = objectStorageClient.bucket(bucketName).file(objectName);
+          const [exists] = await file.exists();
+          if (!exists) {
+            // The audio is gone, but the metadata row is still safe to
+            // carry over — it just won't play, same as any other row
+            // with a missing file (handled by reportUnavailable on the
+            // client).
+            claimableIds.push(row.id);
+            continue;
+          }
+          await setObjectAclPolicy(file, {
+            owner: ownerId,
+            visibility: "private",
+          });
+          claimableIds.push(row.id);
+        } catch (err) {
+          console.error(
+            `Failed to update ACL for soundscape ${row.id} (${row.audioUrl}); leaving as orphan for retry:`,
+            err,
+          );
+          aclFailedIds.push(row.id);
+        }
+      }
+
+      const adopted = await storage.claimOrphanSoundscapesForOwner(claimableIds, ownerId);
+      if (aclFailedIds.length > 0) {
+        console.warn(
+          `Adopt: ${aclFailedIds.length} soundscape(s) skipped due to ACL update failures: ${aclFailedIds.join(", ")}`,
+        );
+      }
+      res.json({ adopted });
+    } catch (error) {
+      console.error("Failed to adopt soundscapes:", error);
+      res.status(500).json({
+        message: "Failed to adopt soundscapes",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   });

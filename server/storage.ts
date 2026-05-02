@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
 import { db } from "./db";
-import { eq, and, desc, lt, sql } from "drizzle-orm";
+import { eq, and, desc, lt, sql, inArray, isNull } from "drizzle-orm";
 import {
   ObjectStorageService,
   objectStorageClient,
@@ -16,6 +16,18 @@ export interface IStorage {
   getSoundscapesByOwner(ownerId: string): Promise<Soundscape[]>;
   createSoundscape(soundscape: InsertSoundscape): Promise<Soundscape>;
   deleteSoundscapeForOwner(id: string, ownerId: string): Promise<Soundscape | undefined>;
+  // Returns the subset of `ids` that are *adoptable* — rows that exist,
+  // are private, and currently have no owner. Used by the adopt route to
+  // pre-flight which audio objects need an ACL rewrite *before* we claim
+  // them in the DB, so a failed ACL update can't leave the user with a
+  // claimed-but-unreadable soundscape.
+  getOrphanSoundscapesByIds(ids: string[]): Promise<Soundscape[]>;
+  // Adopts ownership of any private, currently-orphan soundscapes whose IDs
+  // appear in the given list. Used by the guest -> signed-in handoff so a
+  // user's locally-tracked soundscapes carry over into their account
+  // instead of being silently abandoned. Returns only the rows that were
+  // actually updated (i.e. existed, were ownerless, and were not public).
+  claimOrphanSoundscapesForOwner(ids: string[], ownerId: string): Promise<Soundscape[]>;
   
   getPomodoroSession(id: string): Promise<PomodoroSession | undefined>;
   getPomodoroSessions(): Promise<PomodoroSession[]>;
@@ -110,6 +122,29 @@ export class MemStorage implements IStorage {
     if (!existing || existing.ownerId !== ownerId) return undefined;
     this.soundscapes.delete(id);
     return existing;
+  }
+
+  async getOrphanSoundscapesByIds(ids: string[]): Promise<Soundscape[]> {
+    if (ids.length === 0) return [];
+    const wanted = new Set(ids);
+    return Array.from(this.soundscapes.values()).filter(
+      (s) => wanted.has(s.id) && !s.isPublic && s.ownerId === null,
+    );
+  }
+
+  async claimOrphanSoundscapesForOwner(ids: string[], ownerId: string): Promise<Soundscape[]> {
+    if (ids.length === 0) return [];
+    const claimed: Soundscape[] = [];
+    for (const id of ids) {
+      const existing = this.soundscapes.get(id);
+      if (!existing) continue;
+      if (existing.isPublic) continue;
+      if (existing.ownerId !== null) continue;
+      const updated: Soundscape = { ...existing, ownerId };
+      this.soundscapes.set(id, updated);
+      claimed.push(updated);
+    }
+    return claimed;
   }
 
   async getPomodoroSession(id: string): Promise<PomodoroSession | undefined> {
@@ -408,6 +443,38 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(soundscapes.id, id), eq(soundscapes.ownerId, ownerId)))
       .returning();
     return deleted || undefined;
+  }
+
+  async getOrphanSoundscapesByIds(ids: string[]): Promise<Soundscape[]> {
+    if (ids.length === 0) return [];
+    await this.ensureInitialized();
+    return await db
+      .select()
+      .from(soundscapes)
+      .where(
+        and(
+          inArray(soundscapes.id, ids),
+          isNull(soundscapes.ownerId),
+          eq(soundscapes.isPublic, false),
+        ),
+      );
+  }
+
+  async claimOrphanSoundscapesForOwner(ids: string[], ownerId: string): Promise<Soundscape[]> {
+    if (ids.length === 0) return [];
+    await this.ensureInitialized();
+    const claimed = await db
+      .update(soundscapes)
+      .set({ ownerId })
+      .where(
+        and(
+          inArray(soundscapes.id, ids),
+          isNull(soundscapes.ownerId),
+          eq(soundscapes.isPublic, false),
+        ),
+      )
+      .returning();
+    return claimed;
   }
 
   async getPomodoroSession(id: string): Promise<PomodoroSession | undefined> {

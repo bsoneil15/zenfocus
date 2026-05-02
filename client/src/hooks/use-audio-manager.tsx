@@ -477,6 +477,52 @@ export function useAudioManager() {
     if (isAuthenticated) {
       (async () => {
         try {
+          // Read whatever the user accumulated as a guest BEFORE we hit
+          // the server. We need this so the sign-in moment carries those
+          // entries forward — either by having the server adopt them
+          // (best case, durable) or, failing that, by merging them into
+          // the in-memory list so they don't silently disappear this
+          // session.
+          let localGuestSoundscapes: CustomSoundscape[] = [];
+          try {
+            const saved = localStorage.getItem("custom-soundscapes");
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) {
+                localGuestSoundscapes = parsed.filter(
+                  (s: any) => s && typeof s.id === "string"
+                );
+              }
+            }
+          } catch (err) {
+            console.error("Failed to read guest custom soundscapes from localStorage:", err);
+          }
+
+          // Track which guest IDs we have *confirmed* are now durably
+          // owned by this account. Anything not in this set must stay in
+          // localStorage so a reload (or a retry on the next sign-in)
+          // can still recover it.
+          const claimedIds = new Set<string>();
+
+          if (localGuestSoundscapes.length > 0) {
+            try {
+              const adoptResponse = await apiRequest("POST", "/api/soundscapes/adopt", {
+                ids: localGuestSoundscapes.map(s => s.id),
+              });
+              const adoptData = await adoptResponse.json().catch(() => ({}));
+              const adopted: any[] = Array.isArray(adoptData?.adopted) ? adoptData.adopted : [];
+              for (const row of adopted) {
+                if (row && typeof row.id === "string") claimedIds.add(row.id);
+              }
+            } catch (err) {
+              // Non-fatal: the merge below still keeps the entries
+              // visible this session, and because we won't add their
+              // IDs to claimedIds, they stay in localStorage so a
+              // reload (or the next sign-in attempt) can recover them.
+              console.error("Failed to adopt guest soundscapes on sign-in:", err);
+            }
+          }
+
           const response = await apiRequest("GET", "/api/soundscapes/mine");
           const data = await response.json();
           if (cancelled) return;
@@ -486,16 +532,39 @@ export function useAudioManager() {
             audioUrl: s.audioUrl,
             prompt: s.prompt,
           }));
+          // Anything /mine returns is, by definition, durable for this
+          // account — even if adopt didn't claim it (e.g. the row was
+          // already owned by this user from a previous session).
+          for (const s of mine) claimedIds.add(s.id);
+
           // Merge with any soundscapes already added optimistically this
-          // session so a slow /mine response can't drop a fresh generation.
+          // session AND with anything we read from the guest's local
+          // storage above, so a slow /mine response can't drop a fresh
+          // generation and a failed adopt call can't silently abandon
+          // pre-sign-in history.
           setCustomSoundscapes(prev => {
             const byId = new Map<string, CustomSoundscape>();
             for (const s of mine) byId.set(s.id, s);
             for (const s of prev) if (!byId.has(s.id)) byId.set(s.id, s);
+            for (const s of localGuestSoundscapes) if (!byId.has(s.id)) byId.set(s.id, s);
             return Array.from(byId.values());
           });
-          // We have a durable server-side list now; clear the legacy local copy.
-          try { localStorage.removeItem("custom-soundscapes"); } catch {}
+
+          // Only forget the guest entries we've confirmed are durably
+          // available on the server. Keep everything else in
+          // localStorage so a reload (or the next sign-in retry) can
+          // still adopt them. If nothing remains, drop the key
+          // entirely so we don't keep poking at empty state.
+          try {
+            const remaining = localGuestSoundscapes.filter(s => !claimedIds.has(s.id));
+            if (remaining.length === 0) {
+              localStorage.removeItem("custom-soundscapes");
+            } else {
+              localStorage.setItem("custom-soundscapes", JSON.stringify(remaining));
+            }
+          } catch (err) {
+            console.error("Failed to update guest soundscape localStorage after adoption:", err);
+          }
         } catch (error) {
           console.error("Failed to load saved soundscapes:", error);
         }

@@ -4,7 +4,6 @@ import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { ensurePresetAudiosUploaded } from "./preset_audio";
 import { startElevenLabsHealthMonitor } from "./services/elevenlabs";
-import path from "path";
 
 const app = express();
 app.use(express.json());
@@ -44,18 +43,6 @@ app.use((req, res, next) => {
   await setupAuth(app);
   registerAuthRoutes(app);
   const server = await registerRoutes(app);
-
-  // Read-only static mount kept so any client path that still references
-  // /attached_assets/... (e.g. old browser caches) doesn't 404 hard.
-  // All five preset soundscapes (Rain, Coffee Shop, City Park, Distant
-  // Thunder, Jazz Bar) are now uploaded to durable object storage at
-  // startup and served via /objects/..., so this mount is purely a safety
-  // net. The legacy GET /api/audio/:filename endpoint has been removed
-  // (it now returns 410 Gone). Nothing writes to this directory at runtime.
-  app.use(
-    "/attached_assets",
-    express.static(path.resolve(import.meta.dirname, "..", "attached_assets"))
-  );
 
   // Fire-and-forget: ensure all five preset MP3s (Rain, Coffee Shop, City
   // Park, Distant Thunder, Jazz Bar) are uploaded to durable object storage

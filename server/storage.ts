@@ -288,6 +288,16 @@ export class DatabaseStorage implements IStorage {
           .update(soundscapes)
           .set({ audioUrl: newUrl })
           .where(eq(soundscapes.id, row.id));
+        // Remove the source file so the unauthenticated attached_assets
+        // directory can no longer serve it, closing the ACL bypass window.
+        try {
+          fs.unlinkSync(localPath);
+        } catch (unlinkErr) {
+          console.warn(
+            `Could not delete legacy audio file after migration (${localPath}):`,
+            unlinkErr
+          );
+        }
         migrated++;
       } catch (err) {
         console.error(

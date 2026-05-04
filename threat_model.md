@@ -27,10 +27,10 @@ Production assumption for this scan: `NODE_ENV=production`, Replit terminates TL
 ## Scan Anchors
 
 - **Production entry points:** `server/index.ts`, `server/routes.ts`, `server/replit_integrations/auth/routes.ts`
-- **Highest-risk code areas:** `server/replit_integrations/auth/`, `server/services/elevenlabs.ts`, `server/replit_integrations/object_storage/`, `server/storage.ts`
-- **Public surfaces:** `/api/soundscapes`, `/api/soundscapes/generate`, `/api/soundscapes/:id`, `/api/soundscapes/suggestions`, `/api/sessions`, `/api/health`, `/objects/*`
-- **Authenticated/owner surfaces:** `/api/auth/user`, `/api/auth/users`, `/api/soundscapes/mine`, `DELETE /api/soundscapes/:id`, `/api/health/elevenlabs/check`
-- **Usually dev-only / lower-priority areas:** Vite setup in `server/vite.ts`, static `/attached_assets` compatibility mount, client-only localStorage state, mockup sandbox behavior
+- **Highest-risk code areas:** `server/replit_integrations/auth/`, `server/services/elevenlabs.ts`, `server/services/openai.ts`, `server/replit_integrations/object_storage/`, `server/storage.ts`, production static mounts in `server/index.ts`
+- **Public surfaces:** `/api/soundscapes` (public rows only), `/api/soundscapes/:id` (public rows only unless owner session is present), `/api/rate-limit/status`, `/api/soundscapes/daily-limit`, `/api/soundscapes/hourly-limit`, `/api/health`, `/objects/*` (ACL-gated), `/attached_assets/*` compatibility static files
+- **Authenticated/owner surfaces:** `/api/auth/user`, `/api/soundscapes/generate`, `/api/soundscapes/suggestions`, `/api/soundscapes/adopt`, `/api/soundscapes/mine`, `DELETE /api/soundscapes/:id`, `/api/health/elevenlabs/check`
+- **Usually dev-only / lower-priority areas:** Vite setup in `server/vite.ts`, client-only localStorage state, mockup sandbox behavior. Static `/attached_assets` is a legacy compatibility production surface and should not be treated as dev-only while mounted by `server/index.ts`.
 
 ## Threat Categories
 
@@ -44,11 +44,11 @@ The server accepts user-controlled prompts, session records, and route parameter
 
 ### Information Disclosure
 
-This application stores user profile data, private soundscape prompts, and private audio references. API responses, object-storage ACLs, logs, and route-level authorization must prevent one user from learning another user’s personal data or private content. Error responses should stay generic and secrets must never appear in client code or logs.
+This application stores user profile data, private soundscape prompts, and private audio references. API responses, object-storage ACLs, logs, static mounts, and route-level authorization must prevent one user from learning another user’s personal data or private content. Error responses should stay generic and secrets must never appear in client code or logs.
 
 ### Denial of Service
 
-AI generation endpoints can consume paid upstream quota. Public endpoints must have durable rate limits and usage accounting that are hard to bypass, and external-service failures must fail closed without cascading into broad service instability or excessive retries.
+AI generation endpoints can consume paid upstream quota. Public and authenticated cost-bearing endpoints must have durable rate limits and usage accounting that are hard to bypass, and external-service failures must fail closed without cascading into broad service instability or excessive retries.
 
 ### Elevation of Privilege
 

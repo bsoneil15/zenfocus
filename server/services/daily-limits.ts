@@ -3,6 +3,13 @@ import { storage } from "../storage";
 
 export const DAILY_SOUNDSCAPE_LIMIT = 3;
 
+// Per-user daily limit for the paid OpenAI suggestions endpoint. This is the
+// primary account-level cost-abuse control: it is stored in the DB so it
+// survives process restarts and is consistent across deployment instances.
+// The per-IP suggestionsRateLimiter in rate-limiter.ts is kept as a secondary
+// backstop for burst traffic from a single network address.
+export const DAILY_SUGGESTIONS_LIMIT = 20;
+
 function todayKey(): string {
   const now = new Date();
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
@@ -54,6 +61,40 @@ export async function decrementDailyUsage(req: Request) {
   const key = getDailyLimitKey(req);
   const count = await storage.decrementDailyUsageCount(key, todayKey());
   return buildUsage(count);
+}
+
+// --- Per-account suggestions quota (durable, DB-backed) ---
+// Keyed as "suggestions:user:<userId>" so it occupies its own namespace within
+// the shared dailyUsage table and doesn't collide with the soundscape quota.
+
+function suggestionsDailyKey(userId: string): string {
+  return `suggestions:user:${userId}`;
+}
+
+function buildSuggestionsUsage(count: number) {
+  return {
+    used: count,
+    remaining: Math.max(0, DAILY_SUGGESTIONS_LIMIT - count),
+    limit: DAILY_SUGGESTIONS_LIMIT,
+  };
+}
+
+// Atomically increments the per-user suggestions count and returns the new
+// total. The caller should reject the request (HTTP 429) when `used` exceeds
+// `limit`. We increment-then-check rather than check-then-increment to avoid
+// a TOCTOU race between concurrent requests from the same account.
+export async function incrementDailySuggestionsUsage(userId: string) {
+  const key = suggestionsDailyKey(userId);
+  const count = await storage.incrementDailyUsageCount(key, todayKey());
+  return buildSuggestionsUsage(count);
+}
+
+// Refunds a slot that was incremented but not ultimately served (mirrors the
+// pattern used by the soundscape generation quota).
+export async function decrementDailySuggestionsUsage(userId: string) {
+  const key = suggestionsDailyKey(userId);
+  const count = await storage.decrementDailyUsageCount(key, todayKey());
+  return buildSuggestionsUsage(count);
 }
 
 setInterval(() => {

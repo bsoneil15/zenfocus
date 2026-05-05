@@ -12,6 +12,9 @@ import {
   decrementDailyUsage as decrementDailyUsageServer,
   getDailyUsage as getDailyUsageServer,
   DAILY_SOUNDSCAPE_LIMIT,
+  incrementDailySuggestionsUsage,
+  decrementDailySuggestionsUsage,
+  DAILY_SUGGESTIONS_LIMIT,
 } from "./services/daily-limits";
 import {
   ObjectStorageService,
@@ -69,17 +72,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Require authentication: this endpoint triggers a paid OpenAI call, and
   // the frontend only ever invokes it for signed-in users. Gating server-side
   // prevents anonymous traffic (or scripted abuse) from spending OpenAI
-  // credits. The per-IP suggestionsRateLimiter is kept as a secondary
-  // throttle against bursts from a single account.
+  // credits.
+  //
+  // Two complementary abuse controls are applied:
+  //   1. Per-account daily quota (DAILY_SUGGESTIONS_LIMIT) stored in the DB so
+  //      it is durable across process restarts and consistent across deployment
+  //      instances. Keyed on the authenticated user ID, so it follows the
+  //      account regardless of which IP the request arrives from.
+  //   2. suggestionsRateLimiter — per-IP backstop (20 per 10 min) as a
+  //      secondary throttle against burst traffic from a single network address.
   app.get(
     "/api/soundscapes/suggestions",
     isAuthenticated,
     suggestionsRateLimiter.middleware(),
     async (req, res) => {
+      // Extract the authenticated user ID. isAuthenticated ensures req.user
+      // is present before we reach this handler.
+      const userId = (req.user as { claims?: { sub?: string } })?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Atomically reserve a daily slot. If the new count exceeds the limit,
+      // refund the slot immediately and reject. Increment-then-check avoids a
+      // TOCTOU race between concurrent requests from the same account.
+      const usage = await incrementDailySuggestionsUsage(userId);
+      if (usage.used > DAILY_SUGGESTIONS_LIMIT) {
+        let refundedUsage = usage;
+        try {
+          refundedUsage = await decrementDailySuggestionsUsage(userId);
+        } catch (refundErr) {
+          console.error("Failed to refund over-limit suggestions slot:", refundErr);
+        }
+        return res.status(429).json({
+          code: "suggestions_daily_limit_reached",
+          message: `You've reached your daily limit of ${DAILY_SUGGESTIONS_LIMIT} suggestion requests. Try again tomorrow!`,
+          ...refundedUsage,
+        });
+      }
+
       try {
         const suggestions = await generateFocusPrompts();
         res.json({ suggestions });
       } catch (error) {
+        // Refund the reserved slot so a transient upstream failure doesn't
+        // consume the user's daily quota.
+        try {
+          await decrementDailySuggestionsUsage(userId);
+        } catch (refundErr) {
+          console.error("Failed to refund suggestions daily slot:", refundErr);
+        }
         console.error("Failed to generate suggestions:", error);
         res.status(500).json({
           message: "Failed to generate suggestions",

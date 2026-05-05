@@ -5,6 +5,32 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { ensurePresetAudiosUploaded } from "./preset_audio";
 import { startElevenLabsHealthMonitor } from "./services/elevenlabs";
 
+/**
+ * Recursively removes any key named "prompt" from a plain-object/array tree
+ * so that user-authored soundscape prompts are never written to request logs.
+ */
+function stripSensitiveFields(value: Record<string, unknown>): Record<string, unknown>;
+function stripSensitiveFields(value: unknown[]): unknown[];
+function stripSensitiveFields(value: Record<string, unknown> | unknown[]): Record<string, unknown> | unknown[] {
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      item !== null && typeof item === "object"
+        ? stripSensitiveFields(item as Record<string, unknown>)
+        : item,
+    );
+  }
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(value)) {
+    if (key === "prompt") continue;
+    const child = value[key];
+    result[key] =
+      child !== null && typeof child === "object"
+        ? stripSensitiveFields(child as Record<string, unknown>)
+        : child;
+  }
+  return result;
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -12,7 +38,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
@@ -25,7 +51,8 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        const safeResponse = stripSensitiveFields(capturedJsonResponse);
+        logLine += ` :: ${JSON.stringify(safeResponse)}`;
       }
 
       if (logLine.length > 80) {

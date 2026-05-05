@@ -205,11 +205,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         promptInfluence: validatedData.promptInfluence,
       }, ownerId ?? undefined);
 
-      console.log("About to call generateSoundscapeName with prompt:", validatedData.prompt);
       let name;
       try {
         name = await generateSoundscapeName(validatedData.prompt);
-        console.log("Received name from generateSoundscapeName:", name);
       } catch (nameError) {
         console.error("Error in generateSoundscapeName:", nameError);
         name = "Custom Soundscape";

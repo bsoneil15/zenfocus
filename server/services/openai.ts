@@ -109,8 +109,6 @@ export async function generateFocusPrompts(): Promise<FocusPromptSuggestion[]> {
 }
 
 export async function generateSoundscapeName(prompt: string): Promise<string> {
-  console.log("Generating soundscape name for prompt:", prompt);
-  
   // For now, let's use our reliable fallback system since OpenAI is having issues
   // Generate a simple fallback name with emoji
   const words = prompt.split(' ').slice(0, 2);
@@ -131,6 +129,5 @@ export async function generateSoundscapeName(prompt: string): Promise<string> {
   else if (lowerPrompt.includes('beach') || lowerPrompt.includes('grass') || lowerPrompt.includes('nature')) emoji = "🌾";
   
   const generatedName = `${emoji} ${name}`;
-  console.log("Generated soundscape name:", generatedName);
   return generatedName;
 }

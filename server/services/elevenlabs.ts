@@ -34,7 +34,7 @@ export async function generateSound(request: SoundGenerationRequest, ownerId?: s
 
   const validatedRequest = soundGenerationRequestSchema.parse(request);
 
-  console.log("Generating sound with ElevenLabs:", { prompt: validatedRequest.prompt, duration: validatedRequest.duration });
+  console.log("Generating sound with ElevenLabs:", { duration: validatedRequest.duration });
 
   try {
     const response = await fetch("https://api.elevenlabs.io/v1/sound-generation", {

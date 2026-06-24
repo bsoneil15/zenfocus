@@ -72,31 +72,6 @@ app.use((req, res, next) => {
   registerAuthRoutes(app);
   const server = await registerRoutes(app);
 
-  // Eagerly run storage initialization — including ACL reconciliation and
-  // legacy audio migration — before the server starts accepting requests.
-  // This closes the cold-start window where stale public-ACL objects could
-  // be fetched anonymously via /objects/... before lazy init fires.
-  // Fail-closed: if ACL reconciliation fails, abort startup rather than
-  // serving traffic with potentially stale public ACLs on private objects.
-  await storage.initialize();
-
-  // Fire-and-forget: ensure all five preset MP3s (Rain, Coffee Shop, City
-  // Park, Distant Thunder, Jazz Bar) are uploaded to durable object storage
-  // with public ACL so the quick-pick buttons keep working across container
-  // rebuilds (where attached_assets/ may be wiped).
-  ensurePresetAudiosUploaded().catch((err) => {
-    console.error("Failed to ensure preset audios in object storage:", err);
-  });
-
-  // Start the ElevenLabs key health monitor: pings /v1/user shortly after
-  // startup and every 5 minutes, logging a greppable WARN
-  // (`[elevenlabs-health] WARN: ...`) when the key is rejected or rate
-  // limited so we notice before users do. When ELEVENLABS_ALERT_WEBHOOK_URL
-  // is set, the monitor also POSTs a notification to that webhook on every
-  // status flip (failure or recovery) so the team gets paged instead of
-  // having to tail logs.
-  startElevenLabsHealthMonitor();
-
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -119,5 +94,33 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+
+    // Kick off the heavy, one-time startup jobs in the background AFTER the
+    // server is already listening, so deploy healthchecks (which hit "/")
+    // pass immediately instead of failing for the duration of an O(N)
+    // startup. Security is preserved: the /objects/* route awaits
+    // storage.initialize() before serving any object, so ACL reconciliation
+    // still gates anonymous access to private objects even though it no
+    // longer blocks boot.
+    storage.initialize()
+      .then(() => {
+        // Ensure all five preset MP3s (Rain, Coffee Shop, City Park, Distant
+        // Thunder, Jazz Bar) are uploaded to durable object storage with a
+        // public ACL so the quick-pick buttons keep working across container
+        // rebuilds (where attached_assets/ may be wiped).
+        return ensurePresetAudiosUploaded();
+      })
+      .catch((err) => {
+        console.error("Background startup initialization failed:", err);
+      });
+
+    // Start the ElevenLabs key health monitor: pings /v1/user shortly after
+    // startup and every 5 minutes, logging a greppable WARN
+    // (`[elevenlabs-health] WARN: ...`) when the key is rejected or rate
+    // limited so we notice before users do. When ELEVENLABS_ALERT_WEBHOOK_URL
+    // is set, the monitor also POSTs a notification to that webhook on every
+    // status flip (failure or recovery) so the team gets paged instead of
+    // having to tail logs.
+    startElevenLabsHealthMonitor();
   });
 })();

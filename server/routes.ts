@@ -551,6 +551,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // revealing whether a private path exists.
   app.get("/objects/:objectPath(*)", async (req, res) => {
     try {
+      // Security-critical gate: ensure ACL reconciliation has completed
+      // before serving any object. The server now begins listening before
+      // the one-time startup jobs finish (so deploy healthchecks pass fast),
+      // so this guard closes the cold-start window where a private object
+      // might still carry a stale public ACL. Idempotent and cheap once init
+      // has completed.
+      await storage.initialize();
+
       const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       const userId = (req as any).user?.claims?.sub as string | undefined;

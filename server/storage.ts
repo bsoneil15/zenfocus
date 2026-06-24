@@ -201,34 +201,49 @@ export class MemStorage implements IStorage {
 
 export class DatabaseStorage implements IStorage {
   private initialized = false;
+  private initPromise: Promise<void> | null = null;
 
   async initialize() {
     await this.ensureInitialized();
   }
 
-  private async ensureInitialized() {
-    if (this.initialized) return;
-    
-    try {
-      await this.initializeDefaultData();
-      // Security-critical: await ACL reconciliation so that no request can
-      // reach /objects/... with stale public ACLs on private soundscapes.
-      // This must complete (and succeed) before initialized is set to true
-      // and before the server is ready to serve traffic.
-      await this.reconcileObjectStorageAcls();
-      // Mark initialized only after security-critical reconciliation succeeds,
-      // so a failure does not silently skip reconciliation on subsequent calls.
-      this.initialized = true;
-      // Fire-and-forget: migrate any legacy /api/audio/* rows whose files
-      // still exist on disk into durable object storage. Not security-critical
-      // (those paths are already gated elsewhere), so we don't block on it.
-      this.migrateLegacyAudioToObjectStorage().catch((err) => {
-        console.error("Legacy audio migration failed:", err);
-      });
-    } catch (error) {
-      console.error("Failed to initialize database storage:", error);
-      throw error;
-    }
+  // Idempotent, concurrency-safe initialization. The in-flight promise is
+  // memoized so that if the server starts serving before init completes,
+  // concurrent callers (e.g. the eager background kick-off in index.ts plus
+  // the first /objects request) all await the SAME initialization run rather
+  // than triggering duplicate, racing ACL reconciliations.
+  private ensureInitialized(): Promise<void> {
+    if (this.initialized) return Promise.resolve();
+    if (this.initPromise) return this.initPromise;
+
+    this.initPromise = (async () => {
+      try {
+        await this.initializeDefaultData();
+        // Security-critical: await ACL reconciliation so that no request can
+        // reach /objects/... with stale public ACLs on private soundscapes.
+        // The /objects/* route gates on this same promise, so deferring the
+        // run to the background (after the server is listening) does not open
+        // an access window.
+        await this.reconcileObjectStorageAcls();
+        // Mark initialized only after security-critical reconciliation
+        // succeeds, so a failure does not silently skip reconciliation.
+        this.initialized = true;
+        // Fire-and-forget: migrate any legacy /api/audio/* rows whose files
+        // still exist on disk into durable object storage. Not
+        // security-critical (those paths are already gated elsewhere), so we
+        // don't block on it.
+        this.migrateLegacyAudioToObjectStorage().catch((err) => {
+          console.error("Legacy audio migration failed:", err);
+        });
+      } catch (error) {
+        console.error("Failed to initialize database storage:", error);
+        // Reset so a later call can retry (fail-closed but recoverable).
+        this.initPromise = null;
+        throw error;
+      }
+    })();
+
+    return this.initPromise;
   }
 
   // Backfill: previously generated MP3s were written to attached_assets/

@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { insertSoundscapeSchema } from "@shared/schema";
 import { isAuthenticated } from "./replit_integrations/auth";
 import { generateFocusPrompts, generateSoundscapeName } from "./services/openai";
-import { generateSound, getElevenLabsHealth, checkElevenLabsHealth } from "./services/elevenlabs";
+import { generateSound, getElevenLabsHealth } from "./services/elevenlabs";
 import { soundscapeRateLimiter, suggestionsRateLimiter } from "./middleware/rate-limiter";
 import {
   incrementDailyUsage as incrementDailyUsageServer,
@@ -544,22 +544,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       elevenlabs: getElevenLabsHealth(),
     });
   });
-
-  // On-demand re-check of the ElevenLabs key for any signed-in user.
-  // Returns the fresh status so an operator can verify a rotated key
-  // without waiting for the next scheduled poll. Gated behind
-  // isAuthenticated to keep anonymous traffic from triggering upstream
-  // calls; rate-limited per-IP to prevent a logged-in user from hammering
-  // ElevenLabs through this endpoint.
-  app.post(
-    "/api/health/elevenlabs/check",
-    isAuthenticated,
-    suggestionsRateLimiter.middleware(),
-    async (_req, res) => {
-      const health = await checkElevenLabsHealth();
-      res.json(health);
-    },
-  );
 
   // Serve uploaded objects (used for AI-generated soundscape audio).
   // Enforces ACL: public objects are served to anyone; private objects

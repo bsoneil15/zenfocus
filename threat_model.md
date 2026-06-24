@@ -29,7 +29,7 @@ Production assumption for this scan: `NODE_ENV=production`, Replit terminates TL
 - **Production entry points:** `server/index.ts`, `server/routes.ts`, `server/replit_integrations/auth/routes.ts`
 - **Highest-risk code areas:** `server/replit_integrations/auth/`, `server/services/elevenlabs.ts`, `server/services/openai.ts`, `server/replit_integrations/object_storage/`, `server/storage.ts`, production static mounts in `server/index.ts`
 - **Public surfaces:** `/api/soundscapes` (public rows only), `/api/soundscapes/:id` (public rows only unless owner session is present), `/api/rate-limit/status`, `/api/soundscapes/daily-limit`, `/api/soundscapes/hourly-limit`, `/api/health`, `/objects/*` (ACL-gated)
-- **Authenticated/owner surfaces:** `/api/auth/user`, `/api/soundscapes/generate`, `/api/soundscapes/suggestions`, `/api/soundscapes/adopt`, `/api/soundscapes/mine`, `DELETE /api/soundscapes/:id`, `/api/health/elevenlabs/check`
+- **Authenticated/owner surfaces:** `/api/auth/user`, `/api/soundscapes/generate`, `/api/soundscapes/suggestions`, `/api/soundscapes/adopt`, `/api/soundscapes/mine`, `DELETE /api/soundscapes/:id`
 - **Usually dev-only / lower-priority areas:** Vite setup in `server/vite.ts`, client-only localStorage state, mockup sandbox behavior. Legacy `attached_assets/` files are not mounted by the current production server code and should be ignored unless a future change reintroduces a static mount.
 
 ## Threat Categories

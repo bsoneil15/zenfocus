@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { ensurePresetAudiosUploaded } from "./preset_audio";
 import { startElevenLabsHealthMonitor } from "./services/elevenlabs";
+import { storage } from "./storage";
 
 /**
  * Recursively removes any key named "prompt" from a plain-object/array tree
@@ -70,6 +71,14 @@ app.use((req, res, next) => {
   await setupAuth(app);
   registerAuthRoutes(app);
   const server = await registerRoutes(app);
+
+  // Eagerly run storage initialization — including ACL reconciliation and
+  // legacy audio migration — before the server starts accepting requests.
+  // This closes the cold-start window where stale public-ACL objects could
+  // be fetched anonymously via /objects/... before lazy init fires.
+  // Fail-closed: if ACL reconciliation fails, abort startup rather than
+  // serving traffic with potentially stale public ACLs on private objects.
+  await storage.initialize();
 
   // Fire-and-forget: ensure all five preset MP3s (Rain, Coffee Shop, City
   // Park, Distant Thunder, Jazz Bar) are uploaded to durable object storage

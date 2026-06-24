@@ -202,22 +202,28 @@ export class MemStorage implements IStorage {
 export class DatabaseStorage implements IStorage {
   private initialized = false;
 
+  async initialize() {
+    await this.ensureInitialized();
+  }
+
   private async ensureInitialized() {
     if (this.initialized) return;
     
     try {
       await this.initializeDefaultData();
+      // Security-critical: await ACL reconciliation so that no request can
+      // reach /objects/... with stale public ACLs on private soundscapes.
+      // This must complete (and succeed) before initialized is set to true
+      // and before the server is ready to serve traffic.
+      await this.reconcileObjectStorageAcls();
+      // Mark initialized only after security-critical reconciliation succeeds,
+      // so a failure does not silently skip reconciliation on subsequent calls.
       this.initialized = true;
       // Fire-and-forget: migrate any legacy /api/audio/* rows whose files
-      // still exist on disk into durable object storage. We don't block
-      // initialization on this because it's a one-time best-effort backfill.
+      // still exist on disk into durable object storage. Not security-critical
+      // (those paths are already gated elsewhere), so we don't block on it.
       this.migrateLegacyAudioToObjectStorage().catch((err) => {
         console.error("Legacy audio migration failed:", err);
-      });
-      // Fire-and-forget: correct ACL visibility on any /objects/... soundscape
-      // audio that was previously uploaded with the wrong (public) ACL policy.
-      this.reconcileObjectStorageAcls().catch((err) => {
-        console.error("Object storage ACL reconciliation failed:", err);
       });
     } catch (error) {
       console.error("Failed to initialize database storage:", error);

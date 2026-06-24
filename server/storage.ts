@@ -258,7 +258,7 @@ export class DatabaseStorage implements IStorage {
     if (!privateDir.endsWith("/")) privateDir = `${privateDir}/`;
 
     let migrated = 0;
-    let missing = 0;
+    let removed = 0;
     for (const row of legacy) {
       const filename = row.audioUrl.replace(/^\/(api\/)?audio\//i, "");
       const localPath = path.join(assetsDir, filename);
@@ -267,7 +267,19 @@ export class DatabaseStorage implements IStorage {
         continue;
       }
       if (!fs.existsSync(localPath)) {
-        missing++;
+        // The source file was wiped from attached_assets/ on a container
+        // rebuild and the legacy /api/audio/* endpoint now returns 410 Gone,
+        // so this soundscape can never play again. Remove the dangling row
+        // so it stops being presented to users as a working soundscape.
+        try {
+          await db.delete(soundscapes).where(eq(soundscapes.id, row.id));
+          removed++;
+        } catch (delErr) {
+          console.error(
+            `Failed to remove dangling legacy soundscape ${row.id} (${row.audioUrl}):`,
+            delErr
+          );
+        }
         continue;
       }
       try {
@@ -313,7 +325,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
     console.log(
-      `Legacy audio migration complete: migrated=${migrated}, missing=${missing}, total=${legacy.length}`
+      `Legacy audio migration complete: migrated=${migrated}, removed=${removed}, total=${legacy.length}`
     );
   }
 

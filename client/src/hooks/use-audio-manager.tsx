@@ -319,7 +319,7 @@ export function useAudioManager() {
         error: error instanceof Error ? error.message : error
       });
       const message = error instanceof Error ? error.message : String(error);
-      if (/404|not found/i.test(message)) {
+      if (/404|410|not found|gone/i.test(message)) {
         reportUnavailable(soundscape);
       } else if (/tap|interact|browser is blocking|isn't ready/i.test(message)) {
         // Locked audio — surfaced via the persistent "Enable audio" banner
@@ -353,7 +353,7 @@ export function useAudioManager() {
         error: error instanceof Error ? error.message : error
       });
       const message = error instanceof Error ? error.message : String(error);
-      if (/404|not found/i.test(message)) {
+      if (/404|410|not found|gone/i.test(message)) {
         reportUnavailable(soundscape);
       } else if (/tap|interact|browser is blocking|isn't ready/i.test(message)) {
         reportLockedAudio(soundscape.name);

@@ -1,0 +1,1 @@
+- [Autoscale security note](autoscale-security-note.md) — Process-local rate limits are not durable protection for provider-backed endpoints on autoscaled deployments.

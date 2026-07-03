@@ -36,7 +36,7 @@ Production assumption for this scan: `NODE_ENV=production`, Replit terminates TL
 
 ### Spoofing
 
-Users authenticate through Replit OIDC and server-side sessions. Protected routes must require a valid authenticated session on every request, and any host-dependent callback or logout behavior must not let an attacker spoof trusted origins or bypass session checks.
+Users authenticate through Replit OIDC and server-side sessions. Protected routes must require a valid authenticated session on every request, and any host-dependent callback or logout behavior must not let an attacker spoof trusted origins or bypass session checks. Because the app uses cookie-backed sessions, authenticated routes that spend quota or mutate state must also resist cross-site request triggering through `SameSite`, CSRF tokens, or strict origin validation.
 
 ### Tampering
 
@@ -48,7 +48,7 @@ This application stores user profile data, private soundscape prompts, and priva
 
 ### Denial of Service
 
-AI generation endpoints can consume paid upstream quota. Public and authenticated cost-bearing endpoints must have durable rate limits and usage accounting that are hard to bypass across autoscaled instances, and external-service failures must fail closed without cascading into broad service instability or excessive retries. Operational provider-check endpoints must also be least-privilege and budget-protected so ordinary users cannot burn shared upstream quota.
+AI generation endpoints can consume paid upstream quota. Public and authenticated cost-bearing endpoints must have durable rate limits and usage accounting that are hard to bypass across autoscaled instances, and external-service failures must fail closed without cascading into broad service instability or excessive retries. Quota accounting must also remain fail-closed across partial post-billing failures so a local storage or persistence outage cannot repeatedly refund a user after the upstream provider has already done paid work. Operational provider-check endpoints must also be least-privilege and budget-protected so ordinary users cannot burn shared upstream quota.
 
 ### Elevation of Privilege
 

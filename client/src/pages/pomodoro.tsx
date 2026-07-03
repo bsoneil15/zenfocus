@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Headphones, Settings, Moon, Sun, LogOut, LogIn, Volume2, VolumeX } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -66,12 +68,47 @@ export default function PomodoroPage() {
     isPlaying,
     setVolume,
     setSoundscape,
+    stopCurrentAudio,
     addCustomSoundscape,
     deleteCustomSoundscape,
     playNotificationSound,
     audioUnlocked,
     unlockAudio,
   } = useAudioManager();
+
+  const [audioFollowsTimer, setAudioFollowsTimer] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("audio-follows-timer") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("audio-follows-timer", String(audioFollowsTimer));
+    } catch {}
+  }, [audioFollowsTimer]);
+
+  const audioFollowsTimerRef = useRef(audioFollowsTimer);
+  useEffect(() => { audioFollowsTimerRef.current = audioFollowsTimer; }, [audioFollowsTimer]);
+
+  const currentSoundscapeRef = useRef(currentSoundscape);
+  useEffect(() => { currentSoundscapeRef.current = currentSoundscape; }, [currentSoundscape]);
+
+  const currentSoundscapeIdRef = useRef(currentSoundscapeId);
+  useEffect(() => { currentSoundscapeIdRef.current = currentSoundscapeId; }, [currentSoundscapeId]);
+
+  useEffect(() => {
+    if (!audioFollowsTimerRef.current) return;
+    if (currentSoundscapeRef.current === "none") return;
+
+    if (timerState.isRunning) {
+      setSoundscape(currentSoundscapeRef.current, currentSoundscapeIdRef.current ?? undefined);
+    } else {
+      stopCurrentAudio();
+    }
+  }, [timerState.isRunning, setSoundscape, stopCurrentAudio]);
 
   const {
     permission: notificationPermission,
@@ -329,6 +366,17 @@ export default function PomodoroPage() {
           onReset={reset}
           onSkip={skip}
         />
+
+        <div className="flex items-center gap-2 mb-4" data-testid="audio-follows-timer-toggle">
+          <Switch
+            id="audio-follows-timer"
+            checked={audioFollowsTimer}
+            onCheckedChange={setAudioFollowsTimer}
+          />
+          <Label htmlFor="audio-follows-timer" className="text-sm text-muted-foreground cursor-pointer select-none">
+            Pause audio with timer
+          </Label>
+        </div>
 
         <AudioControls
           currentSoundscape={currentSoundscape}

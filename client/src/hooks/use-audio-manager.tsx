@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createAudioBuffer, createLoopingAudio } from "@/lib/audio-utils";
+import { createAudioBuffer, createLoopingAudio, generateNotificationSound } from "@/lib/audio-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -367,11 +367,21 @@ export function useAudioManager() {
     }
   }, [ensureAudioContext, playAudioBuffer, reportUnavailable, toast]);
 
-  const setSoundscape = useCallback(async (type: SoundscapeType, customId?: string) => {
+  const setSoundscape = useCallback(async (type: SoundscapeType, customId?: string, options?: { playAudio?: boolean }) => {
+    const shouldPlay = options?.playAudio !== false;
     setCurrentSoundscape(type);
     setCurrentSoundscapeId(customId || null);
 
     if (type === "none") {
+      stopCurrentAudio();
+      return;
+    }
+
+    // When the caller explicitly opts out of playback (e.g. "audio follows
+    // timer" mode and the timer is currently paused), just update the
+    // selection state and stop whatever is playing so the new soundscape
+    // will start on the next timer tick.
+    if (!shouldPlay) {
       stopCurrentAudio();
       return;
     }
@@ -624,30 +634,13 @@ export function useAudioManager() {
     }
 
     try {
-      const audioBuffer = await createAudioBuffer("/audio/notification.mp3", ctx);
+      const audioBuffer = generateNotificationSound(ctx);
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(ctx.destination);
       source.start();
     } catch (error) {
-      try {
-        const oscillator = ctx.createOscillator();
-        const gainNode = ctx.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(ctx.destination);
-
-        oscillator.frequency.setValueAtTime(800, ctx.currentTime);
-        oscillator.frequency.setValueAtTime(600, ctx.currentTime + 0.1);
-
-        gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + 0.3);
-      } catch (fallbackError) {
-        console.error("Failed to play notification sound:", fallbackError);
-      }
+      console.error("Failed to play notification sound:", error);
     }
   }, [ensureAudioContext]);
 

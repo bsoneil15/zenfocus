@@ -54,13 +54,14 @@ export function AIGeneratorPanel({
   const { data: hourlyUsage, isLoading: isLoadingHourly } = useQuery<HourlyUsage>({
     queryKey: ["/api/soundscapes/hourly-limit"],
     enabled: isOpen && isAuthenticated,
+    refetchInterval: 60_000,
   });
 
   const remainingGenerations = dailyUsage?.remaining ?? 0;
   const dailyLimit = dailyUsage?.limit ?? 3;
-  const hourlyRemaining = hourlyUsage?.remaining ?? 5;
+  const hourlyRemaining = isLoadingHourly ? 5 : (hourlyUsage?.remaining ?? 0);
   const hourlyLimit = hourlyUsage?.limit ?? 5;
-  const canGenerate = (dailyUsage?.remaining ?? 0) > 0 && (hourlyUsage?.remaining ?? 5) > 0;
+  const canGenerate = !isLoadingUsage && !isLoadingHourly && (dailyUsage?.remaining ?? 0) > 0 && (hourlyUsage?.remaining ?? 0) > 0;
 
   const loadSuggestions = useCallback(async () => {
     setIsLoadingSuggestions(true);
@@ -387,7 +388,7 @@ export function AIGeneratorPanel({
           <Button
             className="flex-1 transition-colors active:scale-95 text-xs sm:text-sm py-2 sm:py-3"
             onClick={generateSoundscape}
-            disabled={isGenerating || !customPrompt.trim() || !canGenerate || isLoadingUsage}
+            disabled={isGenerating || !customPrompt.trim() || !canGenerate || isLoadingUsage || isLoadingHourly}
             data-testid="button-generate-soundscape"
           >
             {isGenerating ? (

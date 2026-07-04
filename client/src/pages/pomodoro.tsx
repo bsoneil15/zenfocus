@@ -226,7 +226,11 @@ export default function PomodoroPage() {
   };
 
   const handleSoundscapeChange = async (type: any, customId?: string) => {
-    await setSoundscape(type, customId);
+    // When "Pause audio with timer" is enabled and the timer is not running,
+    // just update the selection without starting playback. Audio will begin
+    // the next time the timer is started.
+    const shouldPlay = !audioFollowsTimer || timerState.isRunning;
+    await setSoundscape(type, customId, { playAudio: shouldPlay });
   };
 
   const handleSoundscapeGenerated = (soundscape: any) => {

@@ -119,20 +119,67 @@ export function useAudioManager() {
 
   // Explicit one-tap unlock for the "Enable audio" prompt. Returns true once
   // the AudioContext is in the "running" state.
+  //
+  // iOS Safari quirks this works around:
+  // 1. resume() alone is sometimes insufficient — the state can stay
+  //    "suspended" even after the promise resolves on some iOS versions.
+  // 2. The global capture-phase handler fires before this button's onClick,
+  //    so resume() may already be in-flight when we arrive here. Calling it
+  //    again is safe but the state check right after may still show "suspended".
+  // 3. Playing a tiny silent buffer is the most reliable way to force the
+  //    context into "running" on iOS — starting a BufferSource node triggers
+  //    the audio session in a way that resume() alone sometimes doesn't.
   const unlockAudio = useCallback(async (): Promise<boolean> => {
     const ctx = ensureAudioContext();
     if (!ctx) return false;
+
+    if (ctx.state === "running") {
+      setAudioUnlocked(true);
+      return true;
+    }
+
     if (ctx.state === "suspended") {
       try {
         await ctx.resume();
       } catch (err) {
-        console.error("Manual audio unlock failed:", err);
+        console.error("Audio resume failed:", err);
       }
     }
+
+    // Play a 1-sample silent buffer — the classic iOS AudioContext unlock.
+    // Starting any BufferSource forces the audio session open more reliably
+    // than resume() alone on older iOS Safari versions.
+    if (ctx.state !== "closed") {
+      try {
+        const silentBuffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+        const source = ctx.createBufferSource();
+        source.buffer = silentBuffer;
+        source.connect(ctx.destination);
+        source.start(0);
+      } catch (err) {
+        console.error("Silent-buffer unlock failed:", err);
+      }
+    }
+
+    // Give iOS up to 200 ms to settle the state transition before we
+    // decide whether the unlock succeeded.
+    await new Promise<void>((resolve) => {
+      if (ctx.state === "running") { resolve(); return; }
+      const timeout = setTimeout(resolve, 200);
+      const onStateChange = () => {
+        if (ctx.state === "running") {
+          clearTimeout(timeout);
+          ctx.removeEventListener("statechange", onStateChange);
+          resolve();
+        }
+      };
+      ctx.addEventListener("statechange", onStateChange);
+    });
+
     const running = ctx.state === "running";
     setAudioUnlocked(running);
     return running;
-  }, [ensureAudioContext]);
+  }, [ensureAudioContext, setAudioUnlocked]);
 
   // Global one-shot unlock: on the very first user interaction anywhere on
   // the page, create + resume the AudioContext so subsequent async play

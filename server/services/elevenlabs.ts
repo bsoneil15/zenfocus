@@ -25,6 +25,85 @@ const soundGenerationRequestSchema = z.object({
   promptInfluence: z.number().min(0, "Prompt influence must be between 0 and 1").max(1, "Prompt influence must be between 0 and 1").optional(),
 });
 
+/**
+ * Persist generated audio bytes to durable object storage and return an
+ * app-relative /objects/... URL. We never return third-party audio URLs to
+ * clients — those can expire, bypass ACL, and create unpredictable egress.
+ */
+async function saveSoundscapeAudio(
+  audioBuffer: ArrayBuffer,
+  ownerId?: string
+): Promise<string> {
+  if (audioBuffer.byteLength === 0) {
+    throw new Error("Received empty audio buffer from ElevenLabs API");
+  }
+
+  const objectId = `${Date.now()}_${randomUUID()}.mp3`;
+  const objectStorage = new ObjectStorageService();
+  let privateDir = objectStorage.getPrivateObjectDir();
+  if (!privateDir.endsWith("/")) privateDir = `${privateDir}/`;
+  const fullPath = `${privateDir}soundscapes/${objectId}`;
+
+  // fullPath is /<bucketName>/<objectName>
+  const stripped = fullPath.startsWith("/") ? fullPath.slice(1) : fullPath;
+  const slash = stripped.indexOf("/");
+  const bucketName = stripped.slice(0, slash);
+  const objectName = stripped.slice(slash + 1);
+
+  const bucket = objectStorageClient.bucket(bucketName);
+  const file = bucket.file(objectName);
+
+  try {
+    await file.save(Buffer.from(audioBuffer), {
+      contentType: "audio/mpeg",
+      resumable: false,
+    });
+    // Mark object private so only the owner can access it via the
+    // /objects/* serving route. The ACL must match the soundscape row's
+    // isPublic flag to prevent unauthenticated access to private audio.
+    await setObjectAclPolicy(file, {
+      owner: ownerId ?? "system",
+      visibility: "private",
+    });
+    console.log(
+      `Saved soundscape to object storage: soundscapes/${objectId} (${audioBuffer.byteLength} bytes)`
+    );
+  } catch (uploadError) {
+    console.error("Failed to upload audio to object storage:", uploadError);
+    throw new Error(
+      `Failed to save audio: ${
+        uploadError instanceof Error ? uploadError.message : "Unknown error"
+      }`
+    );
+  }
+
+  return `/objects/soundscapes/${objectId}`;
+}
+
+async function fetchExternalAudioBuffer(audioUrl: string): Promise<ArrayBuffer> {
+  const audioResponse = await fetch(audioUrl);
+  if (!audioResponse.ok) {
+    throw new Error(
+      `Failed to download ElevenLabs audio from URL: ${audioResponse.status} ${audioResponse.statusText}`
+    );
+  }
+
+  const contentType = audioResponse.headers.get("content-type");
+  const validAudioTypes = ["audio/", "application/octet-stream"];
+  const isValidAudio = validAudioTypes.some((type) => contentType?.includes(type));
+  if (!isValidAudio) {
+    throw new Error(
+      `Expected audio data from ElevenLabs URL but received: ${contentType || "unknown content type"}`
+    );
+  }
+
+  const audioBuffer = await audioResponse.arrayBuffer();
+  if (audioBuffer.byteLength === 0) {
+    throw new Error("Downloaded empty audio buffer from ElevenLabs URL");
+  }
+  return audioBuffer;
+}
+
 export async function generateSound(request: SoundGenerationRequest, ownerId?: string): Promise<SoundGenerationResponse> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   
@@ -63,19 +142,19 @@ export async function generateSound(request: SoundGenerationRequest, ownerId?: s
     const contentType = response.headers.get("content-type");
     console.log("Response content type:", contentType);
     
+    let audioBuffer: ArrayBuffer;
+
     if (contentType?.includes("application/json")) {
-      // If JSON, it might be a job ID for async processing
+      // Rare path: ElevenLabs returns a temporary audio_url. Download and
+      // re-host so clients only ever see our /objects/... URLs.
       const jsonResponse = await response.json();
       console.log("JSON response from ElevenLabs:", jsonResponse);
-      
-      if (jsonResponse.audio_url) {
-        return {
-          audioUrl: jsonResponse.audio_url,
-          duration: validatedRequest.duration,
-        };
-      } else {
+
+      if (!jsonResponse.audio_url || typeof jsonResponse.audio_url !== "string") {
         throw new Error("Unexpected JSON response from ElevenLabs API");
       }
+
+      audioBuffer = await fetchExternalAudioBuffer(jsonResponse.audio_url);
     } else {
       // Validate that the response is actually audio data
       const validAudioTypes = ['audio/', 'application/octet-stream'];
@@ -86,59 +165,17 @@ export async function generateSound(request: SoundGenerationRequest, ownerId?: s
         throw new Error(`Expected audio data but received: ${contentType || 'unknown content type'}`);
       }
       
-      // If audio data, upload to durable object storage and return a stable
-      // path. Files used to be written to attached_assets/ which is wiped on
-      // container rebuild — soundscape rows survived but audio was gone.
-      const audioBuffer = await response.arrayBuffer();
-
-      if (audioBuffer.byteLength === 0) {
-        throw new Error("Received empty audio buffer from ElevenLabs API");
-      }
-
-      const objectId = `${Date.now()}_${randomUUID()}.mp3`;
-      const objectStorage = new ObjectStorageService();
-      let privateDir = objectStorage.getPrivateObjectDir();
-      if (!privateDir.endsWith("/")) privateDir = `${privateDir}/`;
-      const fullPath = `${privateDir}soundscapes/${objectId}`;
-
-      // fullPath is /<bucketName>/<objectName>
-      const stripped = fullPath.startsWith("/") ? fullPath.slice(1) : fullPath;
-      const slash = stripped.indexOf("/");
-      const bucketName = stripped.slice(0, slash);
-      const objectName = stripped.slice(slash + 1);
-
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
-
-      try {
-        await file.save(Buffer.from(audioBuffer), {
-          contentType: "audio/mpeg",
-          resumable: false,
-        });
-        // Mark object private so only the owner can access it via the
-        // /objects/* serving route. The ACL must match the soundscape row's
-        // isPublic flag to prevent unauthenticated access to private audio.
-        await setObjectAclPolicy(file, {
-          owner: ownerId ?? "system",
-          visibility: "private",
-        });
-        console.log(
-          `Saved soundscape to object storage: soundscapes/${objectId} (${audioBuffer.byteLength} bytes)`
-        );
-      } catch (uploadError) {
-        console.error("Failed to upload audio to object storage:", uploadError);
-        throw new Error(
-          `Failed to save audio: ${
-            uploadError instanceof Error ? uploadError.message : "Unknown error"
-          }`
-        );
-      }
-
-      return {
-        audioUrl: `/objects/soundscapes/${objectId}`,
-        duration: validatedRequest.duration,
-      };
+      // Upload to durable object storage and return a stable path. Files used
+      // to be written to attached_assets/ which is wiped on container rebuild
+      // — soundscape rows survived but audio was gone.
+      audioBuffer = await response.arrayBuffer();
     }
+
+    const audioUrl = await saveSoundscapeAudio(audioBuffer, ownerId);
+    return {
+      audioUrl,
+      duration: validatedRequest.duration,
+    };
   } catch (error) {
     console.error("ElevenLabs sound generation failed:", error);
     throw new Error(`Sound generation failed: ${error instanceof Error ? error.message : "Unknown error"}`);

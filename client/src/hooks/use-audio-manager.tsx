@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createAudioBuffer, createLoopingAudio, generateNotificationSound } from "@/lib/audio-utils";
+import { createAudioBuffer, generateNotificationSound } from "@/lib/audio-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -82,6 +82,11 @@ export function useAudioManager() {
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const volumeRef = useRef(volume);
+  // Decoded buffers are reused across play/stop/switch so we do not re-fetch
+  // and re-decode the same ~700KB MP3. Cleared whenever the AudioContext is
+  // recreated (buffers are tied to a specific context).
+  const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
+  const pendingAudioLoadsRef = useRef<Map<string, Promise<AudioBuffer>>>(new Map());
 
   useEffect(() => {
     volumeRef.current = volume;
@@ -101,6 +106,9 @@ export function useAudioManager() {
         console.error("Web Audio API is not supported in this browser");
         return null;
       }
+      // New context → decoded buffers from a previous context are unusable.
+      audioBufferCacheRef.current.clear();
+      pendingAudioLoadsRef.current.clear();
       const ctx = new Ctor();
       const gain = ctx.createGain();
       gain.connect(ctx.destination);
@@ -115,6 +123,40 @@ export function useAudioManager() {
       console.error("Failed to initialize audio context:", error);
       return null;
     }
+  }, []);
+
+  const getOrLoadAudioBuffer = useCallback(
+    async (url: string, ctx: AudioContext): Promise<AudioBuffer> => {
+      const cached = audioBufferCacheRef.current.get(url);
+      if (cached) {
+        return cached;
+      }
+
+      const pending = pendingAudioLoadsRef.current.get(url);
+      if (pending) {
+        return pending;
+      }
+
+      const loadPromise = createAudioBuffer(url, ctx)
+        .then((buffer) => {
+          audioBufferCacheRef.current.set(url, buffer);
+          pendingAudioLoadsRef.current.delete(url);
+          return buffer;
+        })
+        .catch((error) => {
+          pendingAudioLoadsRef.current.delete(url);
+          throw error;
+        });
+
+      pendingAudioLoadsRef.current.set(url, loadPromise);
+      return loadPromise;
+    },
+    []
+  );
+
+  const evictAudioBuffer = useCallback((url: string) => {
+    audioBufferCacheRef.current.delete(url);
+    pendingAudioLoadsRef.current.delete(url);
   }, []);
 
   // Explicit one-tap unlock for the "Enable audio" prompt. Returns true once
@@ -315,7 +357,7 @@ export function useAudioManager() {
       if (!ctx) {
         throw new Error("Audio isn't ready yet — tap anywhere on the page first, then try again.");
       }
-      const audioBuffer = await createAudioBuffer(audioData, ctx);
+      const audioBuffer = await getOrLoadAudioBuffer(audioData, ctx);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
       console.error(`Failed to load ${type} soundscape:`, error);
@@ -330,7 +372,7 @@ export function useAudioManager() {
         });
       }
     }
-  }, [ensureAudioContext, playAudioBuffer, toast]);
+  }, [ensureAudioContext, getOrLoadAudioBuffer, playAudioBuffer, toast]);
 
   const reportUnavailable = useCallback((soundscape: { id: string; name: string }) => {
     setUnavailableIds(prev => {
@@ -357,7 +399,7 @@ export function useAudioManager() {
       }
 
       console.log('Attempting to play custom soundscape:', soundscape.name, 'from URL:', soundscape.audioUrl);
-      const audioBuffer = await createAudioBuffer(soundscape.audioUrl, ctx);
+      const audioBuffer = await getOrLoadAudioBuffer(soundscape.audioUrl, ctx);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
       console.error("Failed to play custom soundscape:", {
@@ -367,6 +409,7 @@ export function useAudioManager() {
       });
       const message = error instanceof Error ? error.message : String(error);
       if (/404|410|not found|gone/i.test(message)) {
+        evictAudioBuffer(soundscape.audioUrl);
         reportUnavailable(soundscape);
       } else if (/tap|interact|browser is blocking|isn't ready/i.test(message)) {
         // Locked audio — surfaced via the persistent "Enable audio" banner
@@ -380,7 +423,7 @@ export function useAudioManager() {
         });
       }
     }
-  }, [ensureAudioContext, playAudioBuffer, reportUnavailable, toast]);
+  }, [ensureAudioContext, getOrLoadAudioBuffer, playAudioBuffer, evictAudioBuffer, reportUnavailable, toast]);
 
   const playBonusSoundscape = useCallback(async (soundscape: BonusSoundscape) => {
     try {
@@ -391,7 +434,7 @@ export function useAudioManager() {
 
       const audioUrl = soundscape.audioUrl;
       console.log('Attempting to play bonus soundscape from URL:', audioUrl);
-      const audioBuffer = await createAudioBuffer(audioUrl, ctx);
+      const audioBuffer = await getOrLoadAudioBuffer(audioUrl, ctx);
       await playAudioBuffer(audioBuffer);
     } catch (error) {
       console.error("Failed to play bonus soundscape:", {
@@ -401,6 +444,7 @@ export function useAudioManager() {
       });
       const message = error instanceof Error ? error.message : String(error);
       if (/404|410|not found|gone/i.test(message)) {
+        evictAudioBuffer(soundscape.audioUrl);
         reportUnavailable(soundscape);
       } else if (/tap|interact|browser is blocking|isn't ready/i.test(message)) {
         reportLockedAudio(soundscape.name);
@@ -412,7 +456,7 @@ export function useAudioManager() {
         });
       }
     }
-  }, [ensureAudioContext, playAudioBuffer, reportUnavailable, toast]);
+  }, [ensureAudioContext, getOrLoadAudioBuffer, playAudioBuffer, evictAudioBuffer, reportUnavailable, toast]);
 
   const setSoundscape = useCallback(async (type: SoundscapeType, customId?: string, options?: { playAudio?: boolean }) => {
     const shouldPlay = options?.playAudio !== false;
@@ -472,6 +516,10 @@ export function useAudioManager() {
         setCurrentSoundscapeId(null);
       }
 
+      if (target?.audioUrl) {
+        evictAudioBuffer(target.audioUrl);
+      }
+
       setCustomSoundscapes(prev => {
         const updated = prev.filter(s => s.id !== id);
         if (!isAuthenticated) {
@@ -505,7 +553,7 @@ export function useAudioManager() {
       });
       throw error;
     }
-  }, [customSoundscapes, currentSoundscape, currentSoundscapeId, stopCurrentAudio, isAuthenticated, toast]);
+  }, [customSoundscapes, currentSoundscape, currentSoundscapeId, stopCurrentAudio, isAuthenticated, evictAudioBuffer, toast]);
 
   const addCustomSoundscape = useCallback((soundscape: CustomSoundscape) => {
     setCustomSoundscapes(prev => {

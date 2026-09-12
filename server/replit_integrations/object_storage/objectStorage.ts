@@ -95,20 +95,24 @@ export class ObjectStorageService {
   }
 
   // Downloads an object to the response.
-  async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
+  // Public presets are immutable ambient loops — allow long browser caching so
+  // switching soundscapes does not re-pull ~700KB through Express every time.
+  // Private AI clips stay short-lived / private (auth-gated).
+  async downloadObject(file: File, res: Response, cacheTtlSec?: number) {
     try {
       // Get file metadata
       const [metadata] = await file.getMetadata();
       // Get the ACL policy for the object.
       const aclPolicy = await getObjectAclPolicy(file);
       const isPublic = aclPolicy?.visibility === "public";
+      const ttl = cacheTtlSec ?? (isPublic ? 604800 : 3600);
       // Set appropriate headers
       res.set({
         "Content-Type": metadata.contentType || "application/octet-stream",
         "Content-Length": metadata.size,
-        "Cache-Control": `${
-          isPublic ? "public" : "private"
-        }, max-age=${cacheTtlSec}`,
+        "Cache-Control": isPublic
+          ? `public, max-age=${ttl}, immutable`
+          : `private, max-age=${ttl}`,
       });
 
       // Stream the file to the response

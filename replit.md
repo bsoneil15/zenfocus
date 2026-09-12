@@ -35,10 +35,12 @@ Preferred communication style: Simple, everyday language.
 - **Audio Processing**: Web Audio API for real-time audio manipulation
 - **Audio Context**: Browser-native AudioContext with gain nodes for volume control
 - **Looping**: Custom audio buffer creation and seamless looping implementation
+- **Playback efficiency (Phase 1)**: Client fetch uses normal HTTP caching (no `no-store` busting). Decoded `AudioBuffer`s are cached in memory and reused when switching soundscapes; the cache is cleared if the AudioContext is recreated. Public preset objects are served with `Cache-Control: public, max-age=604800, immutable`.
 - **Notifications**: Custom notification sounds generated procedurally
 - **Predefined Sounds**: Rain and Coffee Shop audio is uploaded at server startup (`server/preset_audio.ts`) into durable object storage with public ACL and served from `/objects/soundscape-presets/{rain,coffee}.mp3`. The legacy `/api/audio/:filename` endpoint was removed and now returns 410 Gone; the `/attached_assets/` static mount is kept only for any remaining bonus soundscape rows whose `audioUrl` still uses the `@assets/...` prefix.
 - **Bonus Sounds**: City Park, Distant Thunder, Jazz Bar — all available to logged-in users automatically
-- **AI Generated**: Custom soundscapes generated via ElevenLabs API
+- **AI Generated**: Custom soundscapes generated via ElevenLabs API. Binary responses (and any rare JSON `audio_url` responses) are always re-hosted into private object storage — clients never receive third-party audio URLs.
+- **Hosting note**: The app is still Replit Autoscale–oriented (Replit OIDC + object-storage sidecar). Phase 2/3 (portable R2 storage / leaving Replit) are shelved; Neon Postgres is already external.
 
 ## State Management Patterns
 - **Timer State**: Custom hook with localStorage persistence for settings

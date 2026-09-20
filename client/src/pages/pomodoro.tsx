@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Headphones, Settings, Moon, Sun, LogOut, LogIn, Volume2, VolumeX } from "lucide-react";
+import { Headphones, Settings, Moon, Sun, LogOut, LogIn, Volume2, VolumeX, Github, Linkedin } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -404,8 +404,28 @@ export default function PomodoroPage() {
           breaksToday={todayStats.breaks}
         />
       </main>
-      <footer className="text-center py-4 text-sm text-muted-foreground border-t border-border">
-        Built by Brendan O'Neil with Replit, elevenlabs and OpenAI
+      <footer className="flex flex-col items-center gap-2 py-4 text-sm text-muted-foreground border-t border-border">
+        <p>Built by Brendan O'Neil with Replit, elevenlabs and OpenAI</p>
+        <div className="flex items-center gap-3">
+          <a
+            href="https://www.linkedin.com/in/brendanoneil"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Brendan O'Neil on LinkedIn"
+            className="hover:text-foreground transition-colors"
+          >
+            <Linkedin className="h-4 w-4" />
+          </a>
+          <a
+            href="https://github.com/bsoneil15"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Brendan O'Neil on GitHub"
+            className="hover:text-foreground transition-colors"
+          >
+            <Github className="h-4 w-4" />
+          </a>
+        </div>
       </footer>
       <SettingsPanel
         isOpen={isSettingsOpen}

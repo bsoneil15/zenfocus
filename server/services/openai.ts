@@ -86,25 +86,13 @@ export async function generateFocusPrompts(): Promise<FocusPromptSuggestion[]> {
     }
   } catch (error) {
     console.error("Failed to generate focus prompts:", error);
-    
-    // Fallback suggestions if OpenAI fails
-    return [
-      {
-        id: "1",
-        text: "Gentle forest ambience with distant birds and rustling leaves",
-        category: "nature",
-      },
-      {
-        id: "2", 
-        text: "Soft ocean waves with subtle wind through beach grass",
-        category: "nature",
-      },
-      {
-        id: "3",
-        text: "Cozy fireplace crackling with distant mountain wind",
-        category: "ambient",
-      },
-    ];
+    // Re-throw so the route can refund the daily suggestions slot.
+    // Returning hardcoded fallbacks here previously consumed quota on every
+    // OpenAI failure (and every panel open) while the user still only saw
+    // static copy. The client already has its own offline fallbacks.
+    throw error instanceof Error
+      ? error
+      : new Error("Failed to generate focus prompts");
   }
 }
 

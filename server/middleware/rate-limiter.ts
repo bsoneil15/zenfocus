@@ -10,16 +10,31 @@ class RateLimiter {
   private store = new Map<string, RateLimitEntry>();
   private windowMs: number;
   private maxRequests: number;
+  private resourceLabel: string;
   private cleanupInterval: NodeJS.Timeout;
 
-  constructor(windowMs: number = 60 * 60 * 1000, maxRequests: number = 5) {
+  constructor(
+    windowMs: number = 60 * 60 * 1000,
+    maxRequests: number = 5,
+    resourceLabel: string = "requests",
+  ) {
     this.windowMs = windowMs; // Default: 1 hour
     this.maxRequests = maxRequests; // Default: 5 requests per hour
+    this.resourceLabel = resourceLabel;
     
     // Clean up expired entries every 10 minutes
     this.cleanupInterval = setInterval(() => {
       this.cleanup();
     }, 10 * 60 * 1000);
+  }
+
+  private describeWindow(): string {
+    const minutes = Math.round(this.windowMs / (60 * 1000));
+    if (minutes >= 60 && minutes % 60 === 0) {
+      const hours = minutes / 60;
+      return hours === 1 ? "hour" : `${hours} hours`;
+    }
+    return minutes === 1 ? "minute" : `${minutes} minutes`;
   }
 
   private cleanup() {
@@ -90,7 +105,7 @@ class RateLimiter {
 
         res.status(429).json({
           error: "Rate limit exceeded",
-          message: `Too many soundscape generation requests. You can make ${this.maxRequests} requests per hour. Try again in ${remainingMinutes} minute(s).`,
+          message: `Too many ${this.resourceLabel}. You can make ${this.maxRequests} requests per ${this.describeWindow()}. Try again in ${remainingMinutes} minute(s).`,
           retryAfter: remainingMs,
           resetTime: resetTime.toISOString(),
           currentCount: entry.count,
@@ -138,10 +153,12 @@ class RateLimiter {
 // Create rate limiters for different endpoints
 export const soundscapeRateLimiter = new RateLimiter(
   60 * 60 * 1000, // 1 hour window
-  5 // Max 5 generations per hour per IP
+  5, // Max 5 generations per hour per IP
+  "soundscape generation requests",
 );
 
 export const suggestionsRateLimiter = new RateLimiter(
   10 * 60 * 1000, // 10 minute window  
-  20 // Max 20 suggestion requests per 10 minutes per IP
+  20, // Max 20 suggestion requests per 10 minutes per IP
+  "suggestion requests",
 );

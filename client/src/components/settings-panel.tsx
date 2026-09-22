@@ -95,19 +95,21 @@ export function SettingsPanel({
             </div>
           </div>
           
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col min-w-0">
               <Label className="text-sm font-medium text-foreground">
-                Notifications
+                Chrome notifications
               </Label>
               <span className="text-xs text-muted-foreground">
-                {notificationPermission === "granted" ? "✓ Enabled" : 
-                 notificationPermission === "denied" ? "✗ Blocked" : 
-                 "Click to enable"}
+                {notificationPermission === "granted"
+                  ? "Alert when the timer expires"
+                  : notificationPermission === "denied"
+                    ? "Blocked in browser settings — allow notifications for this site"
+                    : "Allow browser alerts when the timer finishes"}
               </span>
             </div>
             <Switch
-              checked={settings.notifications}
+              checked={settings.notifications && notificationPermission !== "denied"}
               onCheckedChange={(checked) => {
                 onUpdateSettings({ notifications: checked });
                 if (checked) {

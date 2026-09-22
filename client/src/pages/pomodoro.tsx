@@ -112,57 +112,75 @@ export default function PomodoroPage() {
 
   const {
     permission: notificationPermission,
+    isSupported: notificationsSupported,
     requestPermission,
     showTimerNotification,
   } = useNotifications();
 
+  // Keep latest values in refs so the onComplete callback always fires
+  // Chrome notifications for the mode that actually just expired.
+  const timerModeRef = useRef(timerState.mode);
+  useEffect(() => {
+    timerModeRef.current = timerState.mode;
+  }, [timerState.mode]);
+
+  const notificationsEnabledRef = useRef(settings.notifications);
+  useEffect(() => {
+    notificationsEnabledRef.current = settings.notifications;
+  }, [settings.notifications]);
+
+  const focusDurationRef = useRef(settings.focusDuration);
+  useEffect(() => {
+    focusDurationRef.current = settings.focusDuration;
+  }, [settings.focusDuration]);
+
   useEffect(() => {
     onComplete(() => {
+      const completedMode = timerModeRef.current;
       playNotificationSound();
-      
-      const handleNotifications = async () => {
-        if (settings.notifications) {
-          if (notificationPermission === "default") {
-            toast({
-              title: "Enable Notifications?",
-              description: "Get notified when your timer completes. Click to enable.",
-              action: (
-                <button 
-                  onClick={requestPermission}
-                  className="text-primary underline"
-                >
-                  Enable
-                </button>
-              ),
-            });
-          } else if (notificationPermission === "granted") {
-            showTimerNotification(timerState.mode === "focus");
-          }
-        }
-      };
 
-      handleNotifications();
-      
+      if (notificationsEnabledRef.current && notificationsSupported) {
+        if (notificationPermission === "granted") {
+          showTimerNotification(completedMode);
+        } else if (notificationPermission === "default") {
+          toast({
+            title: "Enable Chrome notifications?",
+            description: "Get alerted when your timer finishes, even in another tab.",
+            action: (
+              <button
+                onClick={() => {
+                  void requestPermission();
+                }}
+                className="text-primary underline"
+              >
+                Enable
+              </button>
+            ),
+          });
+        }
+      }
+
       toast({
-        title: timerState.mode === "focus" ? "Great work!" : "Break complete!",
-        description: timerState.mode === "focus" 
-          ? "Time for a well-deserved break." 
-          : "Ready to focus again?",
+        title: completedMode === "focus" ? "Great work!" : "Break complete!",
+        description:
+          completedMode === "focus"
+            ? "Time for a well-deserved break."
+            : "Ready to focus again?",
       });
-      
-      if (timerState.mode === "focus") {
-        setTodayStats(prev => ({
+
+      if (completedMode === "focus") {
+        setTodayStats((prev) => ({
           ...prev,
           sessions: prev.sessions + 1,
-          minutes: prev.minutes + settings.focusDuration,
+          minutes: prev.minutes + focusDurationRef.current,
         }));
       } else {
-        setTodayStats(prev => ({
+        setTodayStats((prev) => ({
           ...prev,
           breaks: prev.breaks + 1,
         }));
       }
-      
+
       setTimeout(() => {
         switchMode();
       }, 1000);
@@ -170,14 +188,29 @@ export default function PomodoroPage() {
   }, [
     onComplete,
     playNotificationSound,
-    settings.notifications,
-    settings.focusDuration,
+    notificationsSupported,
     notificationPermission,
     showTimerNotification,
-    timerState.mode,
+    requestPermission,
     toast,
     switchMode,
   ]);
+
+  // Ask for notification permission on first Start if the user has them enabled.
+  const handleStartPause = () => {
+    if (timerState.isRunning) {
+      pause();
+    } else {
+      if (
+        settings.notifications &&
+        notificationsSupported &&
+        notificationPermission === "default"
+      ) {
+        void requestPermission();
+      }
+      start();
+    }
+  };
 
   useEffect(() => {
     if (!audioUnlocked || hasShownAudioReady) return;
@@ -216,14 +249,6 @@ export default function PomodoroPage() {
       ? `${statusIcon} ${formattedTime} ${modeText} - Focus Flow`
       : "Focus Flow - Pomodoro Timer";
   }, [getFormattedTime, timerState.mode, timerState.isRunning, timerState.currentTime, settings.focusDuration, settings.breakDuration]);
-
-  const handleStartPause = () => {
-    if (timerState.isRunning) {
-      pause();
-    } else {
-      start();
-    }
-  };
 
   const handleSoundscapeChange = async (type: any, customId?: string) => {
     // When "Pause audio with timer" is enabled and the timer is not running,

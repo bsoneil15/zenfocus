@@ -12,7 +12,7 @@ import {
 
 export interface IStorage {
   getSoundscape(id: string): Promise<Soundscape | undefined>;
-  getSoundscapes(): Promise<Soundscape[]>;
+  getSoundscapes(): Promise<Soundscape[]>; // public rows only (list endpoint)
   getSoundscapesByOwner(ownerId: string): Promise<Soundscape[]>;
   createSoundscape(soundscape: InsertSoundscape): Promise<Soundscape>;
   deleteSoundscapeForOwner(id: string, ownerId: string): Promise<Soundscape | undefined>;
@@ -96,7 +96,7 @@ export class MemStorage implements IStorage {
   }
 
   async getSoundscapes(): Promise<Soundscape[]> {
-    return Array.from(this.soundscapes.values());
+    return Array.from(this.soundscapes.values()).filter((s) => s.isPublic);
   }
 
   async getSoundscapesByOwner(ownerId: string): Promise<Soundscape[]> {
@@ -458,7 +458,12 @@ export class DatabaseStorage implements IStorage {
 
   async getSoundscapes(): Promise<Soundscape[]> {
     await this.ensureInitialized();
-    return await db.select().from(soundscapes);
+    // Public list endpoint only needs public rows — avoid loading every
+    // private prompt/audio URL into memory on each anonymous request.
+    return await db
+      .select()
+      .from(soundscapes)
+      .where(eq(soundscapes.isPublic, true));
   }
 
   async getSoundscapesByOwner(ownerId: string): Promise<Soundscape[]> {

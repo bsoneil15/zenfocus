@@ -36,6 +36,10 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: true,
+      // Lax blocks cross-site POST credentialed requests (CSRF on generate /
+      // adopt / delete / logout) while still allowing the OIDC top-level
+      // redirect round-trip to carry the session cookie.
+      sameSite: "lax",
       maxAge: sessionTtl,
     },
   });

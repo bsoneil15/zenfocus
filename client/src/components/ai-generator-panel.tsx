@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -32,6 +32,22 @@ interface PromptSuggestion {
   text: string;
 }
 
+const FALLBACK_SUGGESTIONS: PromptSuggestion[] = [
+  { id: "1", text: "Gentle forest ambience with distant birds and rustling leaves" },
+  { id: "2", text: "Soft ocean waves with subtle wind through beach grass" },
+  { id: "3", text: "Cozy fireplace crackling with distant mountain wind" },
+];
+
+async function fetchSuggestions(): Promise<PromptSuggestion[]> {
+  const response = await apiRequest("GET", "/api/soundscapes/suggestions");
+  const data = await response.json();
+  const list = Array.isArray(data.suggestions) ? data.suggestions : [];
+  return list.map((s: any, index: number) => ({
+    id: typeof s?.id === "string" ? s.id : String(index + 1),
+    text: typeof s?.text === "string" ? s.text : "",
+  })).filter((s: PromptSuggestion) => s.text.length > 0);
+}
+
 export function AIGeneratorPanel({
   isOpen,
   isAuthenticated,
@@ -39,9 +55,7 @@ export function AIGeneratorPanel({
   onSoundscapeGenerated,
 }: AIGeneratorPanelProps) {
   const [customPrompt, setCustomPrompt] = useState("");
-  const [suggestions, setSuggestions] = useState<PromptSuggestion[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const lastAlreadyGeneratingToastAt = useRef<number>(0);
@@ -57,29 +71,33 @@ export function AIGeneratorPanel({
     refetchInterval: 60_000,
   });
 
+  // Cache suggestions for the session so reopening the panel does not burn
+  // another daily OpenAI quota slot on every open.
+  const {
+    data: fetchedSuggestions,
+    isLoading: isLoadingSuggestions,
+    isError: suggestionsFailed,
+  } = useQuery<PromptSuggestion[]>({
+    queryKey: ["/api/soundscapes/suggestions"],
+    queryFn: fetchSuggestions,
+    enabled: isOpen && isAuthenticated,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    retry: false,
+    // Keep last good suggestions if a later refetch fails.
+    placeholderData: (previous) => previous,
+  });
+
+  const displayedSuggestions =
+    fetchedSuggestions && fetchedSuggestions.length > 0
+      ? fetchedSuggestions
+      : FALLBACK_SUGGESTIONS;
+
   const remainingGenerations = dailyUsage?.remaining ?? 0;
   const dailyLimit = dailyUsage?.limit ?? 3;
   const hourlyRemaining = isLoadingHourly ? 5 : (hourlyUsage?.remaining ?? 0);
   const hourlyLimit = hourlyUsage?.limit ?? 5;
   const canGenerate = !isLoadingUsage && !isLoadingHourly && (dailyUsage?.remaining ?? 0) > 0 && (hourlyUsage?.remaining ?? 0) > 0;
-
-  const loadSuggestions = useCallback(async () => {
-    setIsLoadingSuggestions(true);
-    try {
-      const response = await apiRequest("GET", "/api/soundscapes/suggestions");
-      const data = await response.json();
-      setSuggestions(data.suggestions);
-    } catch (error) {
-      console.error("Failed to load suggestions:", error);
-      setSuggestions([
-        { id: "1", text: "Gentle forest ambience with distant birds and rustling leaves" },
-        { id: "2", text: "Soft ocean waves with subtle wind through beach grass" },
-        { id: "3", text: "Cozy fireplace crackling with distant mountain wind" },
-      ]);
-    } finally {
-      setIsLoadingSuggestions(false);
-    }
-  }, []);
 
   const selectPrompt = (suggestion: PromptSuggestion) => {
     setCustomPrompt(suggestion.text);
@@ -219,15 +237,6 @@ export function AIGeneratorPanel({
     }
   };
 
-  // Load suggestions whenever the panel opens for a signed-in user.
-  // Guests see a sign-in prompt instead of the generator, so we don't
-  // need to spend an OpenAI suggestions call on them.
-  useEffect(() => {
-    if (isOpen && isAuthenticated) {
-      loadSuggestions();
-    }
-  }, [isOpen, isAuthenticated, loadSuggestions]);
-
   if (!isOpen) return null;
 
   if (!isAuthenticated) {
@@ -326,13 +335,18 @@ export function AIGeneratorPanel({
             Suggested Prompts
           </h3>
           
-          {isLoadingSuggestions ? (
+          {isLoadingSuggestions && !fetchedSuggestions ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <div className="space-y-2">
-              {suggestions.map((suggestion) => (
+              {suggestionsFailed && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  Showing fallback prompts — suggestions temporarily unavailable.
+                </p>
+              )}
+              {displayedSuggestions.map((suggestion) => (
                 <Button
                   key={suggestion.id}
                   variant="outline"

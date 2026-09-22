@@ -266,7 +266,7 @@ export default function PomodoroPage() {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <Headphones className="h-4 w-4 text-primary-foreground" />
           </div>
-          <h1 className="text-lg font-semibold text-foreground">Zen Focus Timer</h1>
+          <h1 className="text-lg font-semibold text-foreground">Focus Flow</h1>
         </div>
         
         <div className="flex items-center gap-2">

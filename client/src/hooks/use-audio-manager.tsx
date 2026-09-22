@@ -218,7 +218,10 @@ export function useAudioManager() {
       ctx.addEventListener("statechange", onStateChange);
     });
 
-    const running = ctx.state === "running";
+    // Re-read state after async resume/silent-buffer — TypeScript's control
+    // flow still thinks we're in suspended|closed from earlier branches.
+    const finalState = ctx.state as AudioContextState;
+    const running = finalState === ("running" as AudioContextState);
     setAudioUnlocked(running);
     return running;
   }, [ensureAudioContext, setAudioUnlocked]);

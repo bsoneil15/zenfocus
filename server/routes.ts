@@ -2,7 +2,6 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import { storage } from "./storage";
-import { insertSoundscapeSchema } from "@shared/schema";
 import { isAuthenticated } from "./replit_integrations/auth";
 import { generateFocusPrompts, generateSoundscapeName } from "./services/openai";
 import { generateSound, getElevenLabsHealth } from "./services/elevenlabs";
@@ -135,8 +134,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Only public soundscapes are exposed on this endpoint. Per-user
       // soundscapes are returned by /api/soundscapes/mine which requires auth.
-      const all = await storage.getSoundscapes();
-      const soundscapes = all.filter(s => s.isPublic);
+      // Filtering happens in storage so private prompts never leave the DB.
+      const soundscapes = await storage.getSoundscapes();
       res.json({ soundscapes });
     } catch (error) {
       console.error("Failed to get soundscapes:", error);
@@ -286,10 +285,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Do not echo upstream provider bodies to the client — they can
+      // contain raw API diagnostics that aren't useful (or safe) for users.
       res.status(500).json({
         code: "generation_failed",
         message: "Failed to generate soundscape. Please try again.",
-        detail: raw,
       });
     }
   });

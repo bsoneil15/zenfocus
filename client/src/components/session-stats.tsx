@@ -1,15 +1,20 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { ActivityHeatmap } from "@/components/activity-heatmap";
 
 interface SessionStatsProps {
   sessionsToday: number;
   minutesToday: number;
   breaksToday: number;
+  isAuthenticated?: boolean;
+  userName?: string | null;
 }
 
-export function SessionStats({ 
-  sessionsToday, 
-  minutesToday, 
-  breaksToday 
+export function SessionStats({
+  sessionsToday,
+  minutesToday,
+  breaksToday,
+  isAuthenticated = false,
+  userName,
 }: SessionStatsProps) {
   return (
     <Card className="mt-8 w-full max-w-md shadow-sm" data-testid="session-stats">
@@ -35,6 +40,17 @@ export function SessionStats({
             <div className="text-xs text-muted-foreground">Breaks</div>
           </div>
         </div>
+
+        {isAuthenticated && (
+          <ActivityHeatmap
+            todayStats={{
+              sessions: sessionsToday,
+              minutes: minutesToday,
+              breaks: breaksToday,
+            }}
+            userName={userName}
+          />
+        )}
       </CardContent>
     </Card>
   );

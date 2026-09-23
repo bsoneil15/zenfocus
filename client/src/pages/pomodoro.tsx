@@ -458,6 +458,7 @@ export default function PomodoroPage() {
         isOpen={isSettingsOpen}
         settings={settings}
         notificationPermission={notificationPermission}
+        notificationsSupported={notificationsSupported}
         onClose={() => setIsSettingsOpen(false)}
         onUpdateSettings={updateSettings}
         onRequestNotifications={requestPermission}

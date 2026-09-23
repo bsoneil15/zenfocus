@@ -104,9 +104,6 @@ export function SettingsPanel({
 
   if (!isOpen) return null;
 
-  const notificationsEnabled =
-    settings.notifications && notificationPermission !== "denied";
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6"
@@ -124,7 +121,7 @@ export function SettingsPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
-        className={`relative z-10 flex w-full max-h-[90vh] flex-col border border-border bg-card shadow-xl transition-all duration-300 rounded-t-3xl sm:max-w-md sm:rounded-2xl ${
+        className={`relative z-10 flex w-full max-h-[90vh] flex-col border border-border bg-card shadow-xl transition-all duration-300 rounded-t-3xl sm:max-w-sm sm:rounded-2xl ${
           isOpen ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 sm:translate-y-4"
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -238,7 +235,7 @@ export function SettingsPanel({
                 {notificationsSupported && (
                   <PermissionStatus
                     permission={notificationPermission}
-                    enabled={notificationsEnabled}
+                    enabled={settings.notifications}
                   />
                 )}
               </div>
@@ -254,20 +251,21 @@ export function SettingsPanel({
                         Desktop notifications
                       </Label>
                       <span className="text-xs leading-relaxed text-muted-foreground">
-                        {notificationPermission === "granted"
+                        {!settings.notifications
                           ? "Get a system alert when a focus or break session finishes — even in another tab."
-                          : notificationPermission === "denied"
-                            ? "Blocked in your browser. Allow notifications for this site, then turn this back on."
-                            : "Allow browser alerts so you’re notified when the timer finishes."}
+                          : notificationPermission === "granted"
+                            ? "You’ll get a system alert when a focus or break session finishes — even in another tab."
+                            : notificationPermission === "denied"
+                              ? "Blocked in your browser. Allow notifications for this site, then turn this back on."
+                              : "Allow browser alerts so you’re notified when the timer finishes."}
                       </span>
                     </div>
                     <Switch
                       id="switch-notifications"
-                      checked={notificationsEnabled}
-                      disabled={notificationPermission === "denied"}
+                      checked={settings.notifications}
                       onCheckedChange={(checked) => {
                         onUpdateSettings({ notifications: checked });
-                        if (checked) {
+                        if (checked && notificationPermission !== "denied") {
                           onRequestNotifications();
                         }
                       }}

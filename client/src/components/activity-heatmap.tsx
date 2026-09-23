@@ -204,8 +204,13 @@ export function ActivityHeatmap({ todayStats, userName }: ActivityHeatmapProps) 
       const stamp = new Date().toISOString().slice(0, 10);
       a.href = url;
       a.download = `focus-flow-activity-${stamp}.png`;
+      a.rel = "noopener";
+      a.style.display = "none";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      // Revoke after the browser has a chance to start the download
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       toast({
         title: "Downloaded",

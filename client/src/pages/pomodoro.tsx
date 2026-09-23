@@ -427,6 +427,8 @@ export default function PomodoroPage() {
           sessionsToday={todayStats.sessions}
           minutesToday={todayStats.minutes}
           breaksToday={todayStats.breaks}
+          isAuthenticated={!!user}
+          userName={user?.firstName || user?.email || null}
         />
       </main>
       <footer className="flex flex-col items-center gap-2 py-4 text-sm text-muted-foreground border-t border-border">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Headphones, Settings, Moon, Sun, LogOut, LogIn, Volume2, VolumeX, Github, Linkedin } from "lucide-react";
+import { Headphones, Settings, Moon, Sun, LogOut, LogIn, Volume2, VolumeX, Github, Linkedin, Globe } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -451,6 +451,15 @@ export default function PomodoroPage() {
             className="hover:text-foreground transition-colors"
           >
             <Github className="h-4 w-4" />
+          </a>
+          <a
+            href="https://brendanoneil.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Brendan O'Neil's personal website"
+            className="hover:text-foreground transition-colors"
+          >
+            <Globe className="h-4 w-4" />
           </a>
         </div>
       </footer>
